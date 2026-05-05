@@ -32,17 +32,52 @@ export class ScraperService {
     const password = this.encryptionService.decrypt(empresa.claveSol);
 
     const browser = await puppeteer.launch({
-      headless: false,
-      defaultViewport: null,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--start-maximized'],
+      headless: 'new' as any, // Modo invisible (Headless)
+      defaultViewport: { width: 1920, height: 1080 },
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox', 
+        '--start-maximized',
+        '--disable-dev-shm-usage', // Previene errores de memoria en contenedores/servidores
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process' // Más ligero para ejecuciones únicas
+      ],
     });
 
     const page = await browser.newPage();
 
+    // Simular ser un navegador real para evitar ERR_CONNECTION_RESET
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'es-ES,es;q=0.9'
+    });
+
+    // Aceptar diálogos automáticamente
+    page.on('dialog', async dialog => {
+      this.logger.log(`Diálogo detectado: [${dialog.type()}] ${dialog.message()}. Aceptando...`);
+      await dialog.accept();
+    });
+
     try {
       this.logger.log(`Navegando a SUNAT para RUC ${empresa.ruc}`);
       const sunatPortalUrl = 'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm';
-      await page.goto(sunatPortalUrl, { waitUntil: 'networkidle2' });
+      
+      // Reintento automático de navegación inicial
+      let connected = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          await page.goto(sunatPortalUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+          connected = true;
+          break;
+        } catch (e) {
+          this.logger.warn(`Intento ${i+1} fallido (posible bloqueo), reintentando en 5s...`);
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+
+      if (!connected) throw new Error('No se pudo establecer conexión con SUNAT tras varios intentos.');
 
       await page.waitForSelector('#txtRuc', { timeout: 15000 });
       await page.type('#txtRuc', empresa.ruc);
@@ -50,11 +85,40 @@ export class ScraperService {
       await page.type('#txtContrasena', password);
       await page.click('#btnAceptar');
       
+      // Esperar a que cargue el menú principal
       this.logger.log(`Esperando dashboard principal de SUNAT...`);
       await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
 
-      this.logger.log(`ESPERANDO 15 SEGUNDOS: Por favor, haz clic en "Buzón Mensajes"...`);
-      await new Promise(r => setTimeout(r, 15000));
+      // --- FASE A: AUTONOMÍA TOTAL ---
+      this.logger.log(`Navegando automáticamente al Buzón Electrónico...`);
+      
+      try {
+         // Intentar cerrar cualquier modal de aviso que aparezca al inicio
+         const closeButton = await page.$('button[aria-label="Close"], .modal-header .close, #btnCerrarAviso');
+         if (closeButton) await closeButton.click();
+
+         // Buscar el botón por texto (más robusto)
+         const [button] = await page.$$('a, button');
+         const buzonButton = await page.evaluateHandle((text) => {
+            return [...document.querySelectorAll('a, button')].find(el => el.textContent?.includes('Buzón Electrónico'));
+         }, 'Buzón Electrónico');
+
+         if (buzonButton && (buzonButton as any).asElement()) {
+            await (buzonButton as any).asElement().click();
+            this.logger.log(`Clic en botón Buzón realizado por texto.`);
+         } else {
+            // Reintento por selector clásico
+            await page.waitForSelector('#aBuzon, .icon-buzon, [title*="Buzón"]', { timeout: 5000 });
+            await page.click('#aBuzon, .icon-buzon, [title*="Buzón"]');
+         }
+      } catch (e) {
+         this.logger.warn(`No se pudo clickear, usando navegación forzada...`);
+         await page.goto('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?pestana=*&agrupacion=*', { waitUntil: 'networkidle2' });
+      }
+
+      // Esperar a que el frame del buzón se cargue (es un proceso dinámico)
+      this.logger.log(`Esperando carga dinámica de notificaciones (20 segundos)...`);
+      await new Promise(r => setTimeout(r, 20000));
       
       const uploadDir = path.join(process.cwd(), 'uploads');
       if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
