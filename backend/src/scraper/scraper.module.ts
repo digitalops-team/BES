@@ -12,6 +12,14 @@ import { ScraperController } from './scraper.controller';
     EncryptionModule,
     BullModule.registerQueue({
       name: 'sunat-scraper-queue',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+        removeOnComplete: true,
+      }
     }),
   ],
   controllers: [ScraperController],

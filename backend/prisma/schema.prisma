@@ -38,6 +38,7 @@ model Empresa {
   usuarioSol     String
   claveSol       String         // Encriptada con AES-256
    estadoConexion       EstadoConexion @default(CONECTADO)
+  estadoSincro        String   @default("IDLE") // IDLE, SYNCING, SUCCESS, ERROR
    ultimaSincronizacion DateTime?
    createdAt            DateTime       @default(now())
    updatedAt            DateTime       @updatedAt

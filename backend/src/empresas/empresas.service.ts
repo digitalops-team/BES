@@ -31,6 +31,7 @@ export class EmpresasService {
         razonSocial: true,
         usuarioSol: true,
         estadoConexion: true,
+        estadoSincro: true,
         ultimaSincronizacion: true,
         createdAt: true,
       } // Excluimos claveSol por seguridad

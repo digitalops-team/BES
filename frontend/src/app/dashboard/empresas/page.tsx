@@ -172,7 +172,7 @@ export default function EmpresasPage() {
                 <th className="px-6 py-4 border-b border-white/5">Empresa / RUC</th>
                 <th className="px-6 py-4 border-b border-white/5">Usuario SOL</th>
                 <th className="px-6 py-4 border-b border-white/5">Última Sincro</th>
-                <th className="px-6 py-4 border-b border-white/5">Estado Conexión</th>
+                <th className="px-6 py-4 border-b border-white/5">Estado Sincro</th>
                 <th className="px-6 py-4 border-b border-white/5 text-right">Acciones</th>
               </tr>
             </thead>
@@ -206,10 +206,27 @@ export default function EmpresasPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full border border-emerald-400/20">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      ACTIVA
-                    </span>
+                    {emp.estadoSincro === 'SYNCING' ? (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2.5 py-1 rounded-full border border-blue-400/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                        SINCRONIZANDO
+                      </span>
+                    ) : emp.estadoSincro === 'SUCCESS' ? (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full border border-emerald-400/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        TERMINADO
+                      </span>
+                    ) : emp.estadoSincro === 'ERROR' ? (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-red-400 bg-red-400/10 px-2.5 py-1 rounded-full border border-red-400/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                        ERROR
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-500 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-600"></span>
+                        ESPERA
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 transition-opacity">
