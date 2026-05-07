@@ -39,9 +39,8 @@ export class ScraperService {
     const password = this.encryptionService.decrypt(empresa.claveSol);
 
     const browser = await puppeteer.launch({
-      headless: false,
-      slowMo: 100,
-      defaultViewport: { width: 1280, height: 800 },
+      headless: 'new' as any,
+      defaultViewport: { width: 1920, height: 1080 },
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox', 
@@ -140,6 +139,8 @@ export class ScraperService {
 
       let notificacionesExtraidas: any[] = [];
       const notificacionesMap = new Map<string, any>();
+      const pdfsFallidos: { asunto: string; fecha: string }[] = [];
+      const anoActual = new Date().getFullYear();
 
       try {
         const framesList = page.frames();
@@ -149,7 +150,7 @@ export class ScraperService {
           this.logger.log(`Frame de buzón detectado: ${mainFrame.url()}`);
           await mainFrame.evaluate(() => { window.print = () => {}; });
 
-          const dateElements = await mainFrame.$$('*');
+          // Evaluación masiva dentro del navegador para evitar saturación IPC
           
           // NUEVO: Evaluación masiva dentro del navegador (1000x más rápido y no se cuelga)
           const containersHandles = await mainFrame.evaluateHandle(() => {
@@ -236,6 +237,12 @@ export class ScraperService {
                        fechaMensaje = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
                     }
 
+                    // A1: FILTRO DE AÑO — Solo procesamos notificaciones del año actual
+                    if (fechaMensaje.getFullYear() !== anoActual) {
+                       this.logger.log(`⏭️ Saltando notificación de ${fechaMensaje.getFullYear()}: ${asunto.substring(0, 60)}`);
+                       continue;
+                    }
+
                     // --- ESTRATEGIA SUPREMA: EXTRACCIÓN PROFUNDA (ANTICOLISIONES) ---
                     // 1. Iniciamos en null. Nunca guardes rutas dummy en BD para evitar errores 404 en el frontend.
                     let finalHref = null; 
@@ -314,15 +321,18 @@ export class ScraperService {
                                     finalHref = `http://localhost:3000/uploads/${fileName}`;
                                     this.logger.log(`🚀 ¡Jaque Mate! Documento físico guardado: ${fileName}`);
                                 } else {
-                                    this.logger.error(`❌ Archivo corrupto o vacío devuelto por el servidor para el ID ${docInfo.internalId}.`);
+                                    this.logger.warn(`⚠️ PDF vacío/corrupto para: ${asunto.substring(0, 60)}`);
+                                    pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
                                 }
                             }
                         } else {
-                            this.logger.warn(`⚠️ Escaneo profundo fallido: No se encontró la ruta interna dentro de ningún frame.`);
-                        }
-                    } catch (e) {
-                        this.logger.error(`❌ Error fatal en la estrategia de extracción: ${e.message}`);
-                    }
+                             this.logger.warn(`⚠️ No se encontro ID interno en el DOM para: ${asunto.substring(0, 60)}`);
+                             pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
+                         }
+                     } catch (e) {
+                         this.logger.error(`❌ Error fatal en la estrategia de extraccion: ${e.message}`);
+                         pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
+                     }
 
                     if (tipoMensaje === "NOTIFICACION") {
                        const uniqueKey = fileId || `${asunto}-${dateMatch[1]}`;
@@ -332,12 +342,15 @@ export class ScraperService {
                              asunto: asunto.length > 200 ? asunto.substring(0, 197) + '...' : asunto,
                              fechaMensaje,
                              tipo: tipoMensaje,
-                             estado: 'NO_LEIDO',
+                             // B3: Estado diferenciado — SIN_PDF si no se pudo descargar
+                             estado: finalHref ? 'NO_LEIDO' : 'SIN_PDF',
                              rutaArchivoPdf: finalHref
                           });
                        }
                     }
                 }
+                // MEJORA ANTI-BAN: Pausa entre notificaciones para no saturar SUNAT
+                await new Promise(r => setTimeout(r, 1500));
              } catch (err) {
                 this.logger.warn(`Error en fila: ${err.message}`);
              }
@@ -356,7 +369,33 @@ export class ScraperService {
 
       for (const notif of notificacionesExtraidas) {
         if (notif.asunto.toLowerCase().includes("orden de pago") || notif.asunto.toLowerCase().includes("esquela")) {
-          await this.mailService.sendUrgentAlert(empresa.usuario.email, empresa.razonSocial, notif.asunto);
+          // MEJORA: Retry de email con backoff exponencial para evitar ECONNRESET
+          let emailSent = false;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              await this.mailService.sendUrgentAlert(empresa.usuario.email, empresa.razonSocial, notif.asunto);
+              emailSent = true;
+              break;
+            } catch (mailErr) {
+              this.logger.warn(`⚠️ Intento ${attempt}/3 de email falló: ${mailErr.message}. ${attempt < 3 ? `Reintentando en ${attempt * 3}s...` : 'Abandonando.'}`);
+              if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 3000));
+            }
+          }
+          if (!emailSent) this.logger.error(`❌ No se pudo enviar email de alerta para: ${notif.asunto}`);
+        }
+      }
+
+      // B3: EMAIL RESUMEN — Un solo correo al final con todos los PDFs que no se pudieron descargar
+      if (pdfsFallidos.length > 0) {
+        this.logger.warn(`📋 ${pdfsFallidos.length} documento(s) sin PDF. Enviando resumen al admin...`);
+        try {
+          await this.mailService.sendPdfFailureSummary(
+            empresa.usuario.email,
+            empresa.razonSocial,
+            pdfsFallidos
+          );
+        } catch (mailErr) {
+          this.logger.error(`❌ No se pudo enviar el resumen de PDFs fallidos: ${mailErr.message}`);
         }
       }
 

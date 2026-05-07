@@ -54,4 +54,46 @@ export class MailService {
 
     this.logger.log(`Mensaje urgente enviado a ${to}. URL Ethereal: ${nodemailer.getTestMessageUrl(info)}`);
   }
+
+  async sendPdfFailureSummary(to: string, empresaNombre: string, fallos: { asunto: string; fecha: string }[]) {
+    if (!this.transporter) {
+      this.logger.warn('Transporter no inicializado aún');
+      return;
+    }
+
+    const listaHtml = fallos.map((f, i) => `
+      <tr style="background:${i % 2 === 0 ? '#f9f9f9' : '#fff'}">
+        <td style="padding:8px 12px; border-bottom:1px solid #eee;">${f.fecha}</td>
+        <td style="padding:8px 12px; border-bottom:1px solid #eee;">${f.asunto}</td>
+      </tr>
+    `).join('');
+
+    const info = await this.transporter.sendMail({
+      from: '"BES Alertas" <alertas@bes.com>',
+      to,
+      subject: `📋 Resumen: ${fallos.length} documento(s) sin PDF - ${empresaNombre}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #f59e0b; border-radius: 8px; max-width: 700px;">
+          <h2 style="color: #d97706;">⚠️ Documentos sin PDF disponible</h2>
+          <p>Durante la sincronización de <strong>${empresaNombre}</strong>, los siguientes documentos fueron registrados pero <strong>no se pudo descargar su archivo PDF</strong> desde los servidores de SUNAT.</p>
+          <p>Esto puede deberse a documentos expirados, permisos insuficientes o indisponibilidad temporal del servidor.</p>
+          <br/>
+          <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <thead>
+              <tr style="background:#f59e0b; color:white;">
+                <th style="padding:10px 12px; text-align:left;">Fecha</th>
+                <th style="padding:10px 12px; text-align:left;">Asunto</th>
+              </tr>
+            </thead>
+            <tbody>${listaHtml}</tbody>
+          </table>
+          <br/>
+          <p style="color:#666; font-size:13px;">Los títulos de estos documentos <strong>sí fueron guardados</strong> en el panel con estado "SIN PDF". Puede revisarlos iniciando sesión.</p>
+          <a href="http://localhost:3001/dashboard" style="background-color:#d97706; color:white; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold; display:inline-block; margin-top:10px;">Ver en BES Panel</a>
+        </div>
+      `,
+    });
+
+    this.logger.log(`Resumen de PDFs fallidos enviado a ${to}. URL Ethereal: ${nodemailer.getTestMessageUrl(info)}`);
+  }
 }

@@ -16,7 +16,7 @@ import { ScraperController } from './scraper.controller';
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 5000,
+          delay: 60000, // 60s → 120s → 240s (da tiempo a SUNAT de "olvidarnos")
         },
         removeOnComplete: true,
       }
