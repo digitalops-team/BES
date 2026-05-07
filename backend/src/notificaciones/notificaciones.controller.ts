@@ -9,16 +9,16 @@ export class NotificacionesController {
 
   @Get()
   findAll(@Request() req: any) {
-    return this.notificacionesService.findAllByUser(req.user.id);
+    return this.notificacionesService.findAllByUser(req.user.id, req.user.rol);
   }
 
   @Patch(':id/read')
-  markAsRead(@Param('id') id: string, @Request() req: any) {
-    return this.notificacionesService.markAsRead(id, req.user.id);
+  markAsRead(@Param('id') id: string) {
+    return this.notificacionesService.markAsRead(id);
   }
 
   @Delete()
   removeAll(@Request() req: any) {
-    return this.notificacionesService.removeAllByUser(req.user.id);
+    return this.notificacionesService.removeAllByUser(req.user.id, req.user.rol);
   }
 }

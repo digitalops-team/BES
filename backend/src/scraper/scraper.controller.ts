@@ -1,4 +1,4 @@
-import { Controller, Post, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -14,18 +14,30 @@ export class ScraperController {
 
   @Post('sync/:empresaId')
   async syncEmpresa(@Param('empresaId') empresaId: string, @Request() req: any) {
-    // Verificar que la empresa pertenezca al usuario autenticado
-    const empresa = await this.prisma.empresa.findFirst({
-      where: { id: empresaId, usuarioId: req.user.id }
-    });
+    const { id: usuarioId, rol } = req.user;
+    let empresa: any = null;
 
-    if (!empresa) {
-      throw new Error('Empresa no encontrada o no autorizada');
+    if (rol === 'SUPER_ADMIN') {
+      // SUPER_ADMIN puede sincronizar cualquier empresa propia
+      empresa = await this.prisma.empresa.findFirst({
+        where: { id: empresaId, usuarioId }
+      });
+    } else {
+      // Usuarios secundarios: verificar que la empresa esté asignada a ellos
+      const asignacion = await this.prisma.empresaAsignacion.findFirst({
+        where: { usuarioId, empresaId },
+        include: { empresa: true }
+      });
+      if (asignacion) empresa = asignacion.empresa;
     }
 
-    // Encolar el trabajo con alta prioridad
-    await this.scraperQueue.add('scrape-sunat', { empresaId, usuarioId: req.user.id }, {
-      priority: 1 // 1 es prioridad alta en BullMQ (menor número = mayor prioridad)
+    if (!empresa) {
+      throw new ForbiddenException('Empresa no encontrada o no tienes permiso para sincronizarla');
+    }
+
+    // La tarea siempre corre con el ID del SUPER_ADMIN dueño de la empresa
+    await this.scraperQueue.add('scrape-sunat', { empresaId, usuarioId: empresa.usuarioId }, {
+      priority: 1
     });
 
     return { message: 'Sincronización encolada', status: 'pending' };

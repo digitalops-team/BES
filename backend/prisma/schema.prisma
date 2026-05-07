@@ -16,13 +16,14 @@ enum Role {
 model Usuario {
   id        String    @id @default(uuid())
   email     String    @unique
-  password  String    // Hasheada con bcrypt
+  password  String
   nombre    String
   rol       Role      @default(USUARIO_LOCAL)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   
-  empresas  Empresa[]
+  empresas     Empresa[]
+  asignaciones EmpresaAsignacion[]
 }
 
 enum EstadoConexion {
@@ -32,33 +33,46 @@ enum EstadoConexion {
 }
 
 model Empresa {
-  id             String         @id @default(uuid())
-  ruc            String         @unique
-  razonSocial    String
-  usuarioSol     String
-  claveSol       String         // Encriptada con AES-256
-   estadoConexion       EstadoConexion @default(CONECTADO)
-  estadoSincro        String   @default("IDLE") // IDLE, SYNCING, SUCCESS, ERROR
-   ultimaSincronizacion DateTime?
-   createdAt            DateTime       @default(now())
-   updatedAt            DateTime       @updatedAt
+  id                   String         @id @default(uuid())
+  ruc                  String         @unique
+  razonSocial          String
+  usuarioSol           String
+  claveSol             String
+  estadoConexion       EstadoConexion @default(CONECTADO)
+  estadoSincro         String         @default("IDLE")
+  ultimaSincronizacion DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
   
   usuarioId      String
   usuario        Usuario        @relation(fields: [usuarioId], references: [id])
   
   notificaciones Notificacion[]
+  asignaciones   EmpresaAsignacion[]
 }
 
 model Notificacion {
   id              String   @id @default(uuid())
   empresaId       String
-  fileId          String?  @unique  // ID interno de SUNAT — garantiza unicidad y evita duplicados
+  fileId          String?  @unique
   fechaMensaje    DateTime
   asunto          String
-  tipo            String   @default("NOTIFICACION") // NOTIFICACION o MENSAJE
+  tipo            String   @default("NOTIFICACION")
   rutaArchivoPdf  String?
-  estado          String   @default("NO_LEIDO") // NO_LEIDO, LEIDO, SIN_PDF
+  estado          String   @default("NO_LEIDO")
   createdAt       DateTime @default(now())
   
   empresa         Empresa  @relation(fields: [empresaId], references: [id])
+}
+
+model EmpresaAsignacion {
+  id        String   @id @default(uuid())
+  usuarioId String
+  empresaId String
+  creadoEn  DateTime @default(now())
+
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, empresaId])
 }

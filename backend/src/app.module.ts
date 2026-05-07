@@ -12,7 +12,10 @@ import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { EventsModule } from './events/events.module';
 import { MailModule } from './mail/mail.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { AsignacionesModule } from './asignaciones/asignaciones.module';
 import { join } from 'path';
+
 @Module({
   imports: [
     ServeStaticModule.forRoot({
@@ -37,6 +40,8 @@ import { join } from 'path';
     EmpresasModule,
     AuthModule,
     NotificacionesModule,
+    UsuariosModule,
+    AsignacionesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

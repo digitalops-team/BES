@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, Request, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, Request, Patch, ForbiddenException } from '@nestjs/common';
 import { EmpresasService } from './empresas.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -9,12 +9,13 @@ export class EmpresasController {
 
   @Post()
   create(@Body() createEmpresaDto: any, @Request() req: any) {
+    if (req.user.rol !== 'SUPER_ADMIN') throw new ForbiddenException('Solo el administrador puede agregar empresas');
     return this.empresasService.create(createEmpresaDto, req.user.id);
   }
 
   @Get()
   findAll(@Request() req: any) {
-    return this.empresasService.findAllByUser(req.user.id);
+    return this.empresasService.findAllByUser(req.user.id, req.user.rol);
   }
 
   @Get(':id')
@@ -24,11 +25,13 @@ export class EmpresasController {
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateEmpresaDto: any, @Request() req: any) {
+    if (req.user.rol !== 'SUPER_ADMIN') throw new ForbiddenException('Solo el administrador puede editar empresas');
     return this.empresasService.update(id, updateEmpresaDto, req.user.id);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req: any) {
+    if (req.user.rol !== 'SUPER_ADMIN') throw new ForbiddenException('Solo el administrador puede eliminar empresas');
     return this.empresasService.remove(id, req.user.id);
   }
 }

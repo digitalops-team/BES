@@ -133,13 +133,15 @@ export default function EmpresasPage() {
           <h2 className="text-2xl font-bold text-white">Gestión de Empresas</h2>
           <p className="text-gray-400 text-sm">Administra las credenciales y sincronización de tus {empresas.length} empresas.</p>
         </div>
-        <button 
-          onClick={openNewModal}
-          className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-0.5"
-        >
-          <Plus className="w-5 h-5" />
-          Agregar Empresa
-        </button>
+        {user?.rol === 'SUPER_ADMIN' && (
+          <button 
+            onClick={openNewModal}
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-0.5"
+          >
+            <Plus className="w-5 h-5" />
+            Agregar Empresa
+          </button>
+        )}
       </div>
 
       {/* Buscador Rápido */}
@@ -260,20 +262,24 @@ export default function EmpresasPage() {
                       >
                         <RefreshCw className={`w-4 h-4 ${syncingEmpresas[emp.id] ? 'animate-spin' : ''}`} />
                       </button>
-                      <button 
-                        onClick={() => handleEdit(emp)}
-                        className="p-2 bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
-                        title="Editar"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => confirmDelete(emp.id)}
-                        className="p-2 bg-white/5 border border-white/10 text-gray-400 hover:text-red-400 hover:bg-red-400/10 hover:border-red-400/20 rounded-lg transition-all"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {user?.rol === 'SUPER_ADMIN' && (
+                        <>
+                          <button 
+                            onClick={() => handleEdit(emp)}
+                            className="p-2 bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => confirmDelete(emp.id)}
+                            className="p-2 bg-white/5 border border-white/10 text-gray-400 hover:text-red-400 hover:bg-red-400/10 hover:border-red-400/20 rounded-lg transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
