@@ -29,7 +29,7 @@ export class NotificacionesService {
     return this.prisma.notificacion.findMany({
       where: { empresaId: { in: empresaIds } },
       include: {
-        empresa: { select: { razonSocial: true, ruc: true } }
+        empresa: { select: { id: true, razonSocial: true, ruc: true } }
       },
       orderBy: { fechaMensaje: 'desc' }
     });

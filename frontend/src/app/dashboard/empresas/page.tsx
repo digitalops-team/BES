@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Building2, Plus, Search, Lock, RefreshCw, Trash2, Edit2, Clock, Bell } from 'lucide-react';
@@ -15,6 +16,7 @@ export default function EmpresasPage() {
   const [empresaToDelete, setEmpresaToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [syncingEmpresas, setSyncingEmpresas] = useState<Record<string, boolean>>({});
+  const [syncingAll, setSyncingAll] = useState(false);
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
 
@@ -24,6 +26,7 @@ export default function EmpresasPage() {
   const [usuarioSol, setUsuarioSol] = useState('');
   const [claveSol, setClaveSol] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const router = useRouter();
 
   const fetchEmpresas = async () => {
     try {
@@ -65,6 +68,31 @@ export default function EmpresasPage() {
     } catch (error) {
       setSyncingEmpresas(prev => ({ ...prev, [empresaId]: false }));
       alert("No se pudo iniciar la sincronización");
+    }
+  };
+
+  const handleSyncAll = async () => {
+    if (empresas.length === 0) return;
+    setSyncingAll(true);
+    
+    // Optimistic UI: Set all companies as syncing
+    const newSyncingState = { ...syncingEmpresas };
+    empresas.forEach(emp => {
+      newSyncingState[emp.id] = true;
+    });
+    setSyncingEmpresas(newSyncingState);
+
+    try {
+      const res = await axios.post('http://localhost:3000/scraper/sync-all', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(`Se encolaron ${res.data.count} empresas para sincronización.`);
+    } catch (error) {
+      alert("Error al iniciar la sincronización masiva");
+      // Reset syncing state on error for all companies (optional, as they will likely time out anyway or be updated by socket)
+      setSyncingEmpresas({});
+    } finally {
+      setSyncingAll(false);
     }
   };
 
@@ -133,15 +161,25 @@ export default function EmpresasPage() {
           <h2 className="text-2xl font-bold text-white">Gestión de Empresas</h2>
           <p className="text-gray-400 text-sm">Administra las credenciales y sincronización de tus {empresas.length} empresas.</p>
         </div>
-        {user?.rol === 'SUPER_ADMIN' && (
+        <div className="flex items-center gap-3">
           <button 
-            onClick={openNewModal}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-0.5"
+            onClick={handleSyncAll}
+            disabled={syncingAll || empresas.length === 0}
+            className="flex items-center gap-2 bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Plus className="w-5 h-5" />
-            Agregar Empresa
+            <RefreshCw className={`w-5 h-5 ${syncingAll ? 'animate-spin' : ''}`} />
+            {syncingAll ? 'Iniciando...' : 'Sincronizar Todas'}
           </button>
-        )}
+          {user?.rol === 'SUPER_ADMIN' && (
+            <button 
+              onClick={openNewModal}
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-0.5"
+            >
+              <Plus className="w-5 h-5" />
+              Agregar Empresa
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Buscador Rápido */}
@@ -239,16 +277,22 @@ export default function EmpresasPage() {
                         <span className="text-xs text-gray-600">—</span>
                       );
                       if (count === 0) return (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
+                        <button 
+                          onClick={() => router.push(`/dashboard?empresa=${emp.id}`)}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20 hover:bg-amber-400/20 transition-colors cursor-pointer"
+                        >
                           <Bell className="w-3 h-3" />
                           Sin notif. {new Date().getFullYear()}
-                        </span>
+                        </button>
                       );
                       return (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full border border-emerald-400/20">
+                        <button 
+                          onClick={() => router.push(`/dashboard?empresa=${emp.id}`)}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full border border-emerald-400/20 hover:bg-emerald-400/20 transition-colors cursor-pointer shadow-[0_0_10px_rgba(52,211,153,0.2)]"
+                        >
                           <Bell className="w-3 h-3" />
                           {count} notif.
-                        </span>
+                        </button>
                       );
                     })()}
                   </td>

@@ -1,17 +1,23 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useAuthStore } from '@/store/useAuthStore';
-import { FileText, Search, Mail, MailOpen, Clock, X, ExternalLink, Trash2, AlertTriangle } from 'lucide-react';
+import { FileText, Search, Mail, MailOpen, Clock, X, ExternalLink, Trash2, AlertTriangle, FilterX } from 'lucide-react';
 import ConfirmModal from '@/components/ConfirmModal';
 
-export default function DashboardInbox() {
+function InboxContent() {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const token = useAuthStore((state) => state.token);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const empresaFilterId = searchParams.get('empresa');
 
   const fetchNotificaciones = async () => {
     try {
@@ -41,10 +47,23 @@ export default function DashboardInbox() {
     }
   };
 
-  // Usar los datos reales de la BD
-  const displayData = notificaciones;
+  // Aplicar filtros de URL y búsqueda
+  const displayData = notificaciones.filter(notif => {
+    // 1. Filtro por URL (Empresa específica)
+    if (empresaFilterId && notif.empresa.id !== empresaFilterId) return false;
+    
+    // 2. Filtro por barra de búsqueda
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matchRuc = notif.empresa.ruc.includes(term);
+      const matchRazon = notif.empresa.razonSocial.toLowerCase().includes(term);
+      const matchAsunto = notif.asunto.toLowerCase().includes(term);
+      if (!matchRuc && !matchRazon && !matchAsunto) return false;
+    }
+    return true;
+  });
   
-  const unreadCount = notificaciones.filter(n => n.estado === 'NO_LEIDO').length;
+  const unreadCount = displayData.filter(n => n.estado === 'NO_LEIDO').length;
 
   return (
     <div className="space-y-6">
@@ -53,13 +72,20 @@ export default function DashboardInbox() {
         <Search className="text-gray-500 w-5 h-5" />
         <input 
           type="text" 
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar por RUC, Empresa o Asunto..." 
           className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-500 py-2"
         />
-        <div className="h-8 w-px bg-white/10 mx-2"></div>
-        <button className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium transition-colors">
-          Filtrar
-        </button>
+        {empresaFilterId && (
+          <button 
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-medium transition-colors border border-red-500/20"
+          >
+            <FilterX className="w-4 h-4" />
+            Quitar Filtro
+          </button>
+        )}
       </div>
 
       {/* Inbox List */}
@@ -195,5 +221,13 @@ export default function DashboardInbox() {
         message="¿Estás seguro de eliminar todas las notificaciones? Esta acción borrará los registros de forma irreversible."
       />
     </div>
+  );
+}
+
+export default function DashboardInbox() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-gray-400">Cargando bandeja...</div>}>
+      <InboxContent />
+    </Suspense>
   );
 }
