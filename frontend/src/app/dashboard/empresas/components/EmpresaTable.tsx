@@ -116,7 +116,7 @@ export const EmpresaTable: React.FC<EmpresaTableProps> = ({
                   >
                     <RefreshCw className={`w-4 h-4 ${syncingEmpresas[emp.id] ? 'animate-spin' : ''}`} />
                   </button>
-                  {userRol === 'SUPER_ADMIN' && (
+                  {(userRol === 'SUPER_ADMIN' || userRol === 'ADMIN') && (
                     <>
                       <button 
                         onClick={() => onEdit(emp)}

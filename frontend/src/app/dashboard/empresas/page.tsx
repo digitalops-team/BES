@@ -114,7 +114,7 @@ export default function EmpresasPage() {
             <Download className="w-4 h-4" /> Exportar Excel
           </button>
           {/* Importar */}
-          {user?.rol === 'SUPER_ADMIN' && (
+          {(user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN') && (
             <>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
               <button
@@ -133,7 +133,7 @@ export default function EmpresasPage() {
             <RefreshCw className={`w-5 h-5 ${syncingAll ? 'animate-spin' : ''}`} />
             {syncingAll ? 'Iniciando...' : 'Sincronizar Todas'}
           </button>
-          {user?.rol === 'SUPER_ADMIN' && (
+          {(user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN') && (
             <button
               onClick={openNewModal}
               className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-0.5"
