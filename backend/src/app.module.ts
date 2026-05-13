@@ -14,6 +14,7 @@ import { MailModule } from './mail/mail.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { AsignacionesModule } from './asignaciones/asignaciones.module';
+import { EstadisticasModule } from './estadisticas/estadisticas.module';
 import { join } from 'path';
 
 @Module({
@@ -44,6 +45,7 @@ import { join } from 'path';
     NotificacionesModule,
     UsuariosModule,
     AsignacionesModule,
+    EstadisticasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

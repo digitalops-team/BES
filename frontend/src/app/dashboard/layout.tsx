@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Building2, Bell, LogOut, LayoutDashboard, Settings, Shield } from 'lucide-react';
+import { Building2, Bell, LogOut, LayoutDashboard, Settings, Shield, Archive, Mail, TrendingUp } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, user, logout } = useAuthStore();
@@ -21,6 +21,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!mounted || !token) return null;
 
+  const navItems = [
+    {
+      href: '/dashboard',
+      label: 'Panel de Control',
+      icon: <TrendingUp className="w-5 h-5" />,
+      exact: true,
+    },
+    {
+      href: '/dashboard/bandeja',
+      label: 'Bandeja de Entrada',
+      icon: <Mail className="w-5 h-5" />,
+    },
+    {
+      href: '/dashboard/archivo',
+      label: 'Archivo',
+      icon: <Archive className="w-5 h-5" />,
+    },
+    {
+      href: '/dashboard/empresas',
+      label: 'Mis Empresas',
+      icon: <Building2 className="w-5 h-5" />,
+    },
+  ];
+
+  const isActive = (href: string, exact?: boolean) =>
+    exact ? pathname === href : pathname.startsWith(href);
+
   return (
     <div className="min-h-screen bg-[#0a0f1c] flex">
       {/* Sidebar */}
@@ -35,22 +62,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <nav className="flex-1 p-6 space-y-2">
-          <Link href="/dashboard" className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${pathname === '/dashboard' ? 'bg-blue-500/10 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-            <LayoutDashboard className="w-5 h-5" />
-            Bandeja de Entrada
-          </Link>
-          <Link href="/dashboard/empresas" className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${pathname === '/dashboard/empresas' ? 'bg-blue-500/10 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-            <Building2 className="w-5 h-5" />
-            Mis Empresas
-          </Link>
+        <nav className="flex-1 p-6 space-y-1">
+          {navItems.map(item => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${
+                isActive(item.href, item.exact)
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/10'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {item.icon}
+              {item.label}
+            </Link>
+          ))}
+
+          {/* Separador */}
+          <div className="pt-3 pb-1">
+            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-4">Sistema</p>
+          </div>
+
           {user?.rol === 'SUPER_ADMIN' && (
-            <Link href="/dashboard/admin" className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${pathname === '/dashboard/admin' ? 'bg-indigo-500/10 text-indigo-400' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+            <Link
+              href="/dashboard/admin"
+              className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${
+                isActive('/dashboard/admin')
+                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/10'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
               <Shield className="w-5 h-5" />
               Administración
             </Link>
           )}
-          <Link href="#" className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${pathname === '/dashboard/configuracion' ? 'bg-blue-500/10 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+
+          <Link
+            href="#"
+            className="flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors text-gray-400 hover:text-white hover:bg-white/5"
+          >
             <Settings className="w-5 h-5" />
             Configuración
           </Link>
@@ -78,16 +128,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Header */}
         <header className="h-20 bg-[#111827]/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-10 sticky top-0 z-10">
-          <h2 className="text-xl font-semibold text-white">Dashboard General</h2>
+          <p className="text-sm text-gray-400">
+            {new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
           <button className="relative p-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-colors">
             <Bell className="w-6 h-6" />
             <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-[#111827] rounded-full"></span>
           </button>
         </header>
 
-        {/* Dynamic Content */}
         <div className="flex-1 overflow-y-auto p-10">
           {children}
         </div>
@@ -95,3 +145,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
+

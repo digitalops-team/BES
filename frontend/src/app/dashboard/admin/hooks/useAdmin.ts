@@ -6,7 +6,7 @@ export function useAdmin() {
   const { user } = useAuthStore();
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [empresasConFlag, setEmpresasConFlag] = useState<any[]>([]);
+  const [empresasAdmin, setEmpresasAdmin] = useState<any[]>([]);
   const [loadingAsig, setLoadingAsig] = useState(false);
 
   const fetchUsuarios = useCallback(async () => {
@@ -18,14 +18,13 @@ export function useAdmin() {
     }
   }, [user?.id]);
 
-  const fetchAsignaciones = useCallback(async (uid: string) => {
-    if (!uid) return;
+  const fetchEmpresasAdmin = useCallback(async () => {
     setLoadingAsig(true);
     try {
-      const res = await api.get(`/asignaciones/${uid}`);
-      setEmpresasConFlag(res.data);
+      const res = await api.get('/empresas');
+      setEmpresasAdmin(res.data);
     } catch (error) {
-      console.error("Error fetching assignments", error);
+      console.error("Error fetching companies", error);
     } finally {
       setLoadingAsig(false);
     }
@@ -36,8 +35,8 @@ export function useAdmin() {
   }, [fetchUsuarios]);
 
   useEffect(() => {
-    if (selectedUserId) fetchAsignaciones(selectedUserId);
-  }, [selectedUserId, fetchAsignaciones]);
+    fetchEmpresasAdmin();
+  }, [fetchEmpresasAdmin]);
 
   const createUser = async (userData: any) => {
     await api.post('/usuarios', userData);
@@ -50,25 +49,24 @@ export function useAdmin() {
     await fetchUsuarios();
   };
 
-  const toggleAsignacion = async (empresa: any) => {
-    if (!selectedUserId) return;
-    if (empresa.asignada) {
-      await api.delete(`/asignaciones/${selectedUserId}/${empresa.id}`);
+  const toggleUserForCompany = async (empresaId: string, userId: string, assigned: boolean) => {
+    if (assigned) {
+      await api.delete(`/asignaciones/${userId}/${empresaId}`);
     } else {
-      await api.post('/asignaciones', { usuarioId: selectedUserId, empresaId: empresa.id });
+      await api.post('/asignaciones', { usuarioId: userId, empresaId });
     }
-    await fetchAsignaciones(selectedUserId);
+    await fetchEmpresasAdmin();
   };
 
   return {
     usuarios,
     selectedUserId,
     setSelectedUserId,
-    empresasConFlag,
+    empresasAdmin,
+    fetchEmpresasAdmin,
     loadingAsig,
     createUser,
     deleteUser,
-    toggleAsignacion,
-    selectedUser: usuarios.find(u => u.id === selectedUserId),
+    toggleUserForCompany,
   };
 }

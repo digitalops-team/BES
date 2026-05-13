@@ -60,7 +60,16 @@ export class EmpresasService {
               where: { fechaMensaje: { gte: inicioAnio, lte: finAnio } }
             }
           }
-        }
+        },
+        ...(userRol === 'SUPER_ADMIN' ? {
+          asignaciones: {
+            include: {
+              usuario: {
+                select: { id: true, nombre: true, email: true }
+              }
+            }
+          }
+        } : {})
       },
       orderBy: { razonSocial: 'asc' }
     });
