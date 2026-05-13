@@ -16,7 +16,10 @@ export class ScraperProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
-    const { empresaId, usuarioId } = job.data;
+    const { empresaId, usuarioId, callerUserId } = job.data;
+    // El destinatario del WebSocket es quien disparó el sync (caller), no el dueño
+    const notifyUserId = callerUserId || usuarioId;
+
     this.logger.log(`Procesando tarea de scraping para la empresa ${empresaId}...`);
     
     // 1. Marcar como Sincronizando
@@ -29,17 +32,16 @@ export class ScraperProcessor extends WorkerHost {
       await this.scraperService.updateSyncStatus(empresaId, 'SUCCESS');
       this.logger.log(`Tarea completada exitosamente para la empresa ${empresaId}.`);
       
-      // Emitir éxito si hay un usuarioId asociado
-      if (usuarioId) {
-        this.eventsGateway.emitToUser(usuarioId, 'sync-finished', { empresaId, status: 'success' });
+      if (notifyUserId) {
+        this.eventsGateway.emitToUser(notifyUserId, 'sync-finished', { empresaId, status: 'success' });
       }
     } catch (error: any) {
       // 3. Marcar como error
       await this.scraperService.updateSyncStatus(empresaId, 'ERROR');
       this.logger.error(`Falló la tarea de scraping para la empresa ${empresaId}`, error.stack);
       
-      if (usuarioId) {
-        this.eventsGateway.emitToUser(usuarioId, 'sync-error', { empresaId, status: 'error', message: error.message });
+      if (notifyUserId) {
+        this.eventsGateway.emitToUser(notifyUserId, 'sync-error', { empresaId, status: 'error', message: error.message });
       }
       throw error;
     }

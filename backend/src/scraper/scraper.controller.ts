@@ -14,18 +14,18 @@ export class ScraperController {
 
   @Post('sync/:empresaId')
   async syncEmpresa(@Param('empresaId') empresaId: string, @Request() req: any) {
-    const { id: usuarioId, rol } = req.user;
+    const { id: callerId, rol } = req.user;
     let empresa: any = null;
 
-    if (rol === 'SUPER_ADMIN') {
-      // SUPER_ADMIN puede sincronizar cualquier empresa propia
+    if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
+      // SUPER_ADMIN y ADMIN pueden sincronizar cualquier empresa del sistema
       empresa = await this.prisma.empresa.findFirst({
-        where: { id: empresaId, usuarioId }
+        where: { id: empresaId }
       });
     } else {
-      // Usuarios secundarios: verificar que la empresa esté asignada a ellos
+      // USUARIO_LOCAL: solo puede sincronizar las que tiene asignadas
       const asignacion = await this.prisma.empresaAsignacion.findFirst({
-        where: { usuarioId, empresaId },
+        where: { usuarioId: callerId, empresaId },
         include: { empresa: true }
       });
       if (asignacion) empresa = asignacion.empresa;
@@ -35,29 +35,31 @@ export class ScraperController {
       throw new ForbiddenException('Empresa no encontrada o no tienes permiso para sincronizarla');
     }
 
-    // La tarea siempre corre con el ID del SUPER_ADMIN dueño de la empresa
-    await this.scraperQueue.add('scrape-sunat', { empresaId, usuarioId: empresa.usuarioId }, {
-      priority: 1
-    });
+    // ownerUserId = quien recibe el email (SUPER_ADMIN dueño)
+    // callerId    = quien recibe el WebSocket (el que hizo clic)
+    await this.scraperQueue.add('scrape-sunat', {
+      empresaId,
+      usuarioId: empresa.usuarioId,  // para el email y logs
+      callerUserId: callerId          // para el WebSocket de progreso
+    }, { priority: 1 });
 
     return { message: 'Sincronización encolada', status: 'pending' };
   }
 
   @Post('sync-all')
   async syncAllEmpresas(@Request() req: any) {
-    const { id: usuarioId, rol } = req.user;
+    const { id: callerId, rol } = req.user;
     let empresas: any[] = [];
 
-    if (rol === 'SUPER_ADMIN') {
-      // SUPER_ADMIN sincroniza todas sus empresas
+    if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
+      // SUPER_ADMIN y ADMIN sincronizan todas las empresas del sistema
       empresas = await this.prisma.empresa.findMany({
-        where: { usuarioId },
         select: { id: true, usuarioId: true }
       });
     } else {
-      // Usuarios secundarios: sincronizar solo las empresas asignadas
+      // USUARIO_LOCAL: solo las asignadas
       const asignaciones = await this.prisma.empresaAsignacion.findMany({
-        where: { usuarioId },
+        where: { usuarioId: callerId },
         include: { empresa: { select: { id: true, usuarioId: true } } }
       });
       empresas = asignaciones.map(a => a.empresa);
@@ -67,19 +69,22 @@ export class ScraperController {
       return { message: 'No hay empresas para sincronizar', count: 0 };
     }
 
-    // Encolar cada empresa en BullMQ
     const jobs = empresas.map(empresa => ({
       name: 'scrape-sunat',
-      data: { empresaId: empresa.id, usuarioId: empresa.usuarioId },
-      opts: { priority: 2 } // Prioridad normal para la sincronización masiva
+      data: {
+        empresaId: empresa.id,
+        usuarioId: empresa.usuarioId,   // para el email
+        callerUserId: callerId           // para el WebSocket
+      },
+      opts: { priority: 2 }
     }));
 
-    // Usamos addBulk para mayor eficiencia al encolar múltiples trabajos
     await this.scraperQueue.addBulk(jobs);
 
-    return { 
-      message: 'Sincronización masiva encolada', 
-      count: empresas.length 
+    return {
+      message: 'Sincronización masiva encolada',
+      count: empresas.length
     };
   }
 }
+
