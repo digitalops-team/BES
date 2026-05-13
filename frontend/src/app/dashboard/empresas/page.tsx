@@ -80,12 +80,12 @@ export default function EmpresasPage() {
     let success = 0, errors = 0;
     for (const row of importPreview) {
       try {
-        await saveEmpresa({
+        await saveEmpresa(null, {
           razonSocial: row['Razón Social'] || row['Razon Social'] || '',
           ruc: String(row['RUC'] || ''),
           usuarioSol: row['Usuario SOL'] || row['Usuario Sol'] || '',
           claveSol: String(row['Clave SOL'] || row['Clave Sol'] || ''),
-        }, null);
+        });
         success++;
       } catch {
         errors++;
