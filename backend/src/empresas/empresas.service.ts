@@ -27,24 +27,50 @@ export class EmpresasService {
     const inicioAnio = new Date(`${anoActual}-01-01T00:00:00.000Z`);
     const finAnio    = new Date(`${anoActual}-12-31T23:59:59.999Z`);
 
-    let whereClause: any;
+    // ADMIN y SUPER_ADMIN ven TODAS las empresas con asignaciones completas
+    if (userRol === 'SUPER_ADMIN' || userRol === 'ADMIN') {
+      const whereClause = userRol === 'SUPER_ADMIN' ? { usuarioId } : {};
 
-    if (userRol === 'SUPER_ADMIN') {
-      // SUPER_ADMIN ve todas las empresas que le pertenecen
-      whereClause = { usuarioId };
-    } else {
-      // Usuarios secundarios ven solo sus asignadas
-      const asignaciones = await this.prisma.empresaAsignacion.findMany({
-        where: { usuarioId },
-        select: { empresaId: true }
+      return this.prisma.empresa.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          ruc: true,
+          razonSocial: true,
+          usuarioSol: true,
+          estadoConexion: true,
+          estadoSincro: true,
+          ultimaSincronizacion: true,
+          createdAt: true,
+          _count: {
+            select: {
+              notificaciones: {
+                where: { fechaMensaje: { gte: inicioAnio, lte: finAnio } }
+              }
+            }
+          },
+          asignaciones: {
+            include: {
+              usuario: {
+                select: { id: true, nombre: true, email: true }
+              }
+            }
+          }
+        },
+        orderBy: { razonSocial: 'asc' }
       });
-      const empresaIds = asignaciones.map(a => a.empresaId);
-      if (empresaIds.length === 0) return [];
-      whereClause = { id: { in: empresaIds } };
     }
 
+    // Usuarios secundarios: solo ven sus empresas asignadas
+    const asignaciones = await this.prisma.empresaAsignacion.findMany({
+      where: { usuarioId },
+      select: { empresaId: true }
+    });
+    const empresaIds = asignaciones.map(a => a.empresaId);
+    if (empresaIds.length === 0) return [];
+
     return this.prisma.empresa.findMany({
-      where: whereClause,
+      where: { id: { in: empresaIds } },
       select: {
         id: true,
         ruc: true,
@@ -60,20 +86,12 @@ export class EmpresasService {
               where: { fechaMensaje: { gte: inicioAnio, lte: finAnio } }
             }
           }
-        },
-        ...(userRol === 'SUPER_ADMIN' ? {
-          asignaciones: {
-            include: {
-              usuario: {
-                select: { id: true, nombre: true, email: true }
-              }
-            }
-          }
-        } : {})
+        }
       },
       orderBy: { razonSocial: 'asc' }
     });
   }
+
 
   findOne(id: string, usuarioId: string) {
     return this.prisma.empresa.findFirst({

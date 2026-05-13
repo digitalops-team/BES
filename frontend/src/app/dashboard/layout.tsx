@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-4">Sistema</p>
           </div>
 
-          {user?.rol === 'SUPER_ADMIN' && (
+          {(user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN') && (
             <Link
               href="/dashboard/admin"
               className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${

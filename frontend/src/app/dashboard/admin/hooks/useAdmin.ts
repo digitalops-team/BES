@@ -44,8 +44,13 @@ export function useAdmin() {
   };
 
   const deleteUser = async (id: string) => {
-    if (!confirm('¿Eliminar este usuario?')) return;
+    if (!confirm('¿Eliminar este usuario? Esta acción no se puede deshacer.')) return;
     await api.delete(`/usuarios/${id}`);
+    await fetchUsuarios();
+  };
+
+  const updateUser = async (id: string, data: any) => {
+    await api.patch(`/usuarios/${id}`, data);
     await fetchUsuarios();
   };
 
@@ -67,6 +72,7 @@ export function useAdmin() {
     loadingAsig,
     createUser,
     deleteUser,
+    updateUser,
     toggleUserForCompany,
   };
 }

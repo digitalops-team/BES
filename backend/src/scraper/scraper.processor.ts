@@ -4,7 +4,7 @@ import { Logger } from '@nestjs/common';
 import { ScraperService } from './scraper.service';
 import { EventsGateway } from '../events/events.gateway';
 
-@Processor('sunat-scraper-queue', { concurrency: 3 })
+@Processor('sunat-scraper-queue', { concurrency: 5 })
 export class ScraperProcessor extends WorkerHost {
   private readonly logger = new Logger(ScraperProcessor.name);
 

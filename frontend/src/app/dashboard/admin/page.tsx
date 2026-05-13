@@ -3,26 +3,37 @@
 import { useState } from 'react';
 import { Users, Shield, Building2 } from 'lucide-react';
 import { useAdmin } from './hooks/useAdmin';
+import { useAuthStore } from '@/store/useAuthStore';
 import { UserList } from './components/UserList';
 import { UserForm } from './components/UserForm';
+import { UserEditModal } from './components/UserEditModal';
+import { UserDetailModal } from './components/UserDetailModal';
+import { UserCompanyAssignModal } from './components/UserCompanyAssignModal';
 import { CompanyDirectoryList } from './components/CompanyDirectoryList';
 import { CompanyAssignmentModal } from './components/CompanyAssignmentModal';
 
 type Tab = 'usuarios' | 'empresas';
 
 export default function AdminPage() {
+  const { user: authUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState<Tab>('usuarios');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<any>(null);
-  
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const [assigningUser, setAssigningUser] = useState<any>(null); // usuario para asignar empresas
+
   const {
     usuarios,
     empresasAdmin,
     loadingAsig,
     createUser,
     deleteUser,
+    updateUser,
     toggleUserForCompany
   } = useAdmin();
+
+  const callerRol = authUser?.rol || '';
 
   return (
     <div className="space-y-6">
@@ -52,28 +63,55 @@ export default function AdminPage() {
 
       {activeTab === 'usuarios' && (
         <>
-          {showCreateForm && (
-            <UserForm 
-              onSubmit={createUser} 
-              onCancel={() => setShowCreateForm(false)} 
-            />
-          )}
-          <UserList 
+          <UserList
             usuarios={usuarios}
+            empresasAdmin={empresasAdmin}
+            callerRol={callerRol}
             onDelete={deleteUser}
-            onAssign={() => setActiveTab('empresas')}
-            onCreateOpen={() => setShowCreateForm(!showCreateForm)}
+            onEdit={setEditingUser}
+            onDetail={setDetailUserId}
+            onAssign={(id) => setAssigningUser(usuarios.find(u => u.id === id) || null)}
+            onCreateOpen={() => setShowCreateForm(true)}
           />
         </>
       )}
 
       {activeTab === 'empresas' && (
-        <CompanyDirectoryList 
+        <CompanyDirectoryList
           empresas={empresasAdmin}
           onAssignClick={(emp) => setSelectedCompany(emp)}
           onRevokeUser={(empresaId, userId) => toggleUserForCompany(empresaId, userId, true)}
         />
       )}
+
+      {/* Modales */}
+      <UserForm
+        isOpen={showCreateForm}
+        onSubmit={createUser}
+        onCancel={() => setShowCreateForm(false)}
+      />
+
+      <UserEditModal
+        isOpen={!!editingUser}
+        user={editingUser}
+        onClose={() => setEditingUser(null)}
+        onSubmit={updateUser}
+      />
+
+      <UserDetailModal
+        isOpen={!!detailUserId}
+        userId={detailUserId}
+        onClose={() => setDetailUserId(null)}
+      />
+
+      <UserCompanyAssignModal
+        isOpen={!!assigningUser}
+        selectedUser={assigningUser}
+        empresasAdmin={empresasAdmin}
+        loading={loadingAsig}
+        onClose={() => setAssigningUser(null)}
+        onToggle={toggleUserForCompany}
+      />
 
       <CompanyAssignmentModal
         isOpen={!!selectedCompany}
