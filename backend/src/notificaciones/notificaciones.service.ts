@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class NotificacionesService {
@@ -87,14 +89,56 @@ export class NotificacionesService {
     return { count: lecturas.length };
   }
 
-  /** Solo SUPER_ADMIN/ADMIN pueden eliminar notificaciones permanentemente */
+  /** Elimina el PDF del disco si existe */
+  private deletePdfFile(rutaArchivoPdf: string | null) {
+    if (!rutaArchivoPdf) return;
+    try {
+      // La URL es tipo: http://localhost:3000/uploads/123456789.pdf
+      const fileName = rutaArchivoPdf.split('/uploads/').pop();
+      if (!fileName) return;
+      const filePath = path.join(process.cwd(), 'uploads', fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (err) {
+      // No bloqueamos si falla el borrado del archivo
+      console.error('Error eliminando PDF del disco:', err);
+    }
+  }
+
+  /** Elimina UNA notificación (solo SUPER_ADMIN y ADMIN) + su PDF del disco */
+  async removeOne(id: string, usuarioId: string, rol: string) {
+    if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
+      throw new ForbiddenException('Solo administradores pueden eliminar notificaciones');
+    }
+
+    const notif = await this.prisma.notificacion.findUnique({ where: { id } });
+    if (!notif) throw new NotFoundException('Notificación no encontrada');
+
+    // Eliminar PDF del disco
+    this.deletePdfFile(notif.rutaArchivoPdf);
+
+    // Eliminar registro (cascade borra NotificacionLectura asociadas)
+    await this.prisma.notificacion.delete({ where: { id } });
+    return { success: true };
+  }
+
+  /** Solo SUPER_ADMIN/ADMIN pueden eliminar TODAS las notificaciones (+ PDFs) */
   async removeAllByUser(usuarioId: string, rol: string) {
     const empresaIds = await this.getEmpresaIds(usuarioId, rol);
     if (empresaIds.length === 0) return { count: 0 };
+
+    // Recopilar rutas de PDF antes de borrar
+    const notifs = await this.prisma.notificacion.findMany({
+      where: { empresaId: { in: empresaIds } },
+      select: { rutaArchivoPdf: true }
+    });
+
+    // Borrar PDFs del disco
+    notifs.forEach(n => this.deletePdfFile(n.rutaArchivoPdf));
 
     return this.prisma.notificacion.deleteMany({
       where: { empresaId: { in: empresaIds } }
     });
   }
 }
-

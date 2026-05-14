@@ -31,6 +31,12 @@ export class NotificacionesController {
     return this.notificacionesService.markAllAsRead(req.user.id, req.user.rol);
   }
 
+  /** Eliminar una notificación (SUPER_ADMIN/ADMIN) + PDF del disco */
+  @Delete(':id')
+  removeOne(@Param('id') id: string, @Request() req: any) {
+    return this.notificacionesService.removeOne(id, req.user.id, req.user.rol);
+  }
+
   /** Eliminar todas (SUPER_ADMIN/ADMIN) */
   @Delete()
   removeAll(@Request() req: any) {

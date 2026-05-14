@@ -1,22 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
-import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, MailOpen, Clock, FileText, AlertTriangle, Archive } from 'lucide-react';
+import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, MailOpen, Clock, FileText, AlertTriangle, Archive, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
+import ConfirmModal from '@/components/ConfirmModal';
 
 function ArchivoContent() {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null); // id de notif a eliminar
   const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
+  const canDelete = user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN';
 
   const fetchNotificaciones = useCallback(async () => {
     try {
       const res = await api.get('/notificaciones/archivo');
-      // La API ya devuelve solo las LEÍDAS por este usuario
       setNotificaciones(res.data);
     } catch (error) {
       console.error("Error loading notifications", error);
@@ -28,6 +30,17 @@ function ArchivoContent() {
   useEffect(() => {
     if (token) fetchNotificaciones();
   }, [token, fetchNotificaciones]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.delete(`/notificaciones/${id}`);
+      setNotificaciones(prev => prev.filter(n => n.id !== id));
+    } catch (error) {
+      console.error("Error deleting notification", error);
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
 
   const filteredData = notificaciones.filter(notif => {
     if (!searchTerm) return true;
@@ -86,10 +99,10 @@ function ArchivoContent() {
             ) : filteredData.map((notif: any) => (
               <div
                 key={notif.id}
-                className={`p-6 flex items-start gap-6 transition-colors hover:bg-white/[0.02] cursor-pointer`}
-                onClick={() => notif.rutaArchivoPdf && setSelectedPdf(notif.rutaArchivoPdf)}
+                className="p-6 flex items-start gap-6 transition-colors hover:bg-white/[0.02] group"
               >
-                <div className="pt-1">
+                {/* Icono */}
+                <div className="pt-1 flex-shrink-0">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${
                     notif.estado === 'SIN_PDF'
                       ? 'bg-amber-500/10 border-amber-500/20'
@@ -98,7 +111,12 @@ function ArchivoContent() {
                     <MailOpen className={`w-5 h-5 ${notif.estado === 'SIN_PDF' ? 'text-amber-400' : 'text-gray-500'}`} />
                   </div>
                 </div>
-                <div className="flex-1 min-w-0">
+
+                {/* Contenido */}
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => notif.rutaArchivoPdf && setSelectedPdf(notif.rutaArchivoPdf)}
+                >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-3">
                       <span className="font-semibold text-gray-300">{notif.empresa.razonSocial}</span>
@@ -129,6 +147,17 @@ function ArchivoContent() {
                     </div>
                   )}
                 </div>
+
+                {/* Botón eliminar — solo ADMIN y SUPER_ADMIN */}
+                {canDelete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(notif.id); }}
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-2 rounded-xl text-gray-600 hover:text-red-400 hover:bg-red-400/10 border border-transparent hover:border-red-400/20 transition-all"
+                    title="Eliminar notificación"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -161,6 +190,15 @@ function ArchivoContent() {
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+        title="¿Eliminar notificación?"
+        message="Se eliminará esta notificación y su PDF del sistema de forma permanente. Esta acción no se puede deshacer."
+      />
     </div>
   );
 }
