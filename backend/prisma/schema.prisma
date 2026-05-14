@@ -22,8 +22,9 @@ model Usuario {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   
-  empresas     Empresa[]
-  asignaciones EmpresaAsignacion[]
+  empresas               Empresa[]
+  asignaciones           EmpresaAsignacion[]
+  lecturasNotificaciones NotificacionLectura[]
 }
 
 enum EstadoConexion {
@@ -62,7 +63,21 @@ model Notificacion {
   estado          String   @default("NO_LEIDO")
   createdAt       DateTime @default(now())
   
-  empresa         Empresa  @relation(fields: [empresaId], references: [id])
+  empresa         Empresa               @relation(fields: [empresaId], references: [id])
+  lecturas        NotificacionLectura[]
+}
+
+/// Tabla de lecturas por usuario — cada fila = "este usuario leyó esta notificación"
+model NotificacionLectura {
+  id             String       @id @default(uuid())
+  notificacionId String
+  usuarioId      String
+  creadoAt       DateTime     @default(now())
+
+  notificacion   Notificacion @relation(fields: [notificacionId], references: [id], onDelete: Cascade)
+  usuario        Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([notificacionId, usuarioId])
 }
 
 model EmpresaAsignacion {

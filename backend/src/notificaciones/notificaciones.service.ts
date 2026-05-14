@@ -5,29 +5,31 @@ import { PrismaService } from '../prisma.service';
 export class NotificacionesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAllByUser(usuarioId: string, userRol: string) {
-    let empresaIds: string[];
-
-    if (userRol === 'SUPER_ADMIN') {
-      // SUPER_ADMIN ve notificaciones de todas sus empresas
-      const empresas = await this.prisma.empresa.findMany({
-        where: { usuarioId },
-        select: { id: true }
-      });
-      empresaIds = empresas.map(e => e.id);
-    } else {
-      // Usuarios secundarios ven solo sus empresas asignadas
-      const asignaciones = await this.prisma.empresaAsignacion.findMany({
-        where: { usuarioId },
-        select: { empresaId: true }
-      });
-      empresaIds = asignaciones.map(a => a.empresaId);
+  /** Obtiene los IDs de empresas visibles para el usuario según su rol */
+  private async getEmpresaIds(usuarioId: string, rol: string): Promise<string[]> {
+    if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
+      // SUPER_ADMIN y ADMIN ven notificaciones de TODAS las empresas del sistema
+      const empresas = await this.prisma.empresa.findMany({ select: { id: true } });
+      return empresas.map(e => e.id);
     }
+    // USUARIO_LOCAL: solo las empresas asignadas a él
+    const asignaciones = await this.prisma.empresaAsignacion.findMany({
+      where: { usuarioId },
+      select: { empresaId: true }
+    });
+    return asignaciones.map(a => a.empresaId);
+  }
 
+  /** BANDEJA: notificaciones que este usuario AÚN NO ha leído */
+  async findBandejaByUser(usuarioId: string, rol: string) {
+    const empresaIds = await this.getEmpresaIds(usuarioId, rol);
     if (empresaIds.length === 0) return [];
 
     return this.prisma.notificacion.findMany({
-      where: { empresaId: { in: empresaIds } },
+      where: {
+        empresaId: { in: empresaIds },
+        lecturas: { none: { usuarioId } }  // Sin lectura para este usuario
+      },
       include: {
         empresa: { select: { id: true, razonSocial: true, ruc: true } }
       },
@@ -35,30 +37,59 @@ export class NotificacionesService {
     });
   }
 
-  markAsRead(id: string) {
-    return this.prisma.notificacion.update({
-      where: { id },
-      data: { estado: 'LEIDO' }
+  /** ARCHIVO: notificaciones que este usuario YA leyó */
+  async findArchivoByUser(usuarioId: string, rol: string) {
+    const empresaIds = await this.getEmpresaIds(usuarioId, rol);
+    if (empresaIds.length === 0) return [];
+
+    return this.prisma.notificacion.findMany({
+      where: {
+        empresaId: { in: empresaIds },
+        lecturas: { some: { usuarioId } }  // Con lectura de este usuario
+      },
+      include: {
+        empresa: { select: { id: true, razonSocial: true, ruc: true } }
+      },
+      orderBy: { fechaMensaje: 'desc' }
     });
   }
 
-  async removeAllByUser(usuarioId: string, userRol: string) {
-    let empresaIds: string[];
+  /** Marca una notificación como leída SOLO para este usuario (no afecta a otros) */
+  async markAsRead(notificacionId: string, usuarioId: string) {
+    return this.prisma.notificacionLectura.upsert({
+      where: { notificacionId_usuarioId: { notificacionId, usuarioId } },
+      create: { notificacionId, usuarioId },
+      update: {}  // Si ya existe, no hacer nada
+    });
+  }
 
-    if (userRol === 'SUPER_ADMIN') {
-      const empresas = await this.prisma.empresa.findMany({
-        where: { usuarioId },
-        select: { id: true }
-      });
-      empresaIds = empresas.map(e => e.id);
-    } else {
-      const asignaciones = await this.prisma.empresaAsignacion.findMany({
-        where: { usuarioId },
-        select: { empresaId: true }
-      });
-      empresaIds = asignaciones.map(a => a.empresaId);
-    }
+  /** Marca TODAS las notificaciones de bandeja como leídas para este usuario */
+  async markAllAsRead(usuarioId: string, rol: string) {
+    const empresaIds = await this.getEmpresaIds(usuarioId, rol);
+    if (empresaIds.length === 0) return { count: 0 };
 
+    // Obtener todas las notificaciones sin leer por este usuario
+    const sinLeer = await this.prisma.notificacion.findMany({
+      where: {
+        empresaId: { in: empresaIds },
+        lecturas: { none: { usuarioId } }
+      },
+      select: { id: true }
+    });
+
+    // Crear lecturas para todas
+    const lecturas = sinLeer.map(n => ({ notificacionId: n.id, usuarioId }));
+    await this.prisma.notificacionLectura.createMany({
+      data: lecturas,
+      skipDuplicates: true
+    });
+
+    return { count: lecturas.length };
+  }
+
+  /** Solo SUPER_ADMIN/ADMIN pueden eliminar notificaciones permanentemente */
+  async removeAllByUser(usuarioId: string, rol: string) {
+    const empresaIds = await this.getEmpresaIds(usuarioId, rol);
     if (empresaIds.length === 0) return { count: 0 };
 
     return this.prisma.notificacion.deleteMany({
@@ -66,3 +97,4 @@ export class NotificacionesService {
     });
   }
 }
+

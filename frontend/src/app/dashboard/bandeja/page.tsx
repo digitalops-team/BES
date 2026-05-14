@@ -21,8 +21,8 @@ function BandejaContent() {
   const fetchNotificaciones = useCallback(async () => {
     try {
       const res = await api.get('/notificaciones');
-      // Solo NO_LEIDO en la bandeja de entrada
-      setNotificaciones(res.data.filter((n: any) => n.estado === 'NO_LEIDO'));
+      // La API ya devuelve solo las NO LEÍDAS por este usuario
+      setNotificaciones(res.data);
     } catch (error) {
       console.error("Error loading notifications", error);
     } finally {
@@ -50,7 +50,8 @@ function BandejaContent() {
   };
 
   const clearInbox = async () => {
-    await api.delete('/notificaciones');
+    // Marcar todo como leído para ESTE usuario (no elimina, no afecta a otros)
+    await api.patch('/notificaciones/mark-all-read');
     await fetchNotificaciones();
   };
 

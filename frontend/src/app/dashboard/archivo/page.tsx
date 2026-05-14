@@ -15,9 +15,9 @@ function ArchivoContent() {
 
   const fetchNotificaciones = useCallback(async () => {
     try {
-      const res = await api.get('/notificaciones');
-      // Solo LEIDO en el archivo
-      setNotificaciones(res.data.filter((n: any) => n.estado === 'LEIDO' || n.estado === 'SIN_PDF'));
+      const res = await api.get('/notificaciones/archivo');
+      // La API ya devuelve solo las LEÍDAS por este usuario
+      setNotificaciones(res.data);
     } catch (error) {
       console.error("Error loading notifications", error);
     } finally {
