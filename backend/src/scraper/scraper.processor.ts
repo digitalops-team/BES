@@ -4,7 +4,11 @@ import { Logger } from '@nestjs/common';
 import { ScraperService } from './scraper.service';
 import { EventsGateway } from '../events/events.gateway';
 
-@Processor('sunat-scraper-queue', { concurrency: 1 })
+@Processor('sunat-scraper-queue', { 
+  concurrency: 1,
+  lockDuration: 300000, // 5 minutos (evita 'stalled' si Puppeteer es lento)
+  maxStalledCount: 10   // Intentar retomar el job más veces si falla el proceso
+})
 export class ScraperProcessor extends WorkerHost {
   private readonly logger = new Logger(ScraperProcessor.name);
 

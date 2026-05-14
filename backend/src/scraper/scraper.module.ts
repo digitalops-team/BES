@@ -12,14 +12,19 @@ import { ScraperController } from './scraper.controller';
     EncryptionModule,
     BullModule.registerQueue({
       name: 'sunat-scraper-queue',
+      streams: {
+        events: {
+          maxLen: 100,
+        },
+      },
       defaultJobOptions: {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 60000, // 60s → 120s → 240s (da tiempo a SUNAT de "olvidarnos")
+          delay: 60000,
         },
         removeOnComplete: true,
-      }
+      },
     }),
   ],
   controllers: [ScraperController],
