@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
-import api from '@/lib/api';
 import { Mail, Lock, LogIn, Activity } from 'lucide-react';
 
 export default function LoginPage() {
@@ -20,15 +19,25 @@ export default function LoginPage() {
     setError('');
     
     try {
-      const response = await api.post('/auth/login', {
-        email,
-        password,
+      // Route Handler de Next.js → llama al backend y setea cookie httpOnly
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
-      
-      setAuth(response.data.access_token, response.data.usuario);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || 'Error al iniciar sesión');
+        return;
+      }
+
+      // Guardar token (para el interceptor de Axios) y datos de usuario
+      setAuth(data.access_token, data.usuario);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al iniciar sesión');
+    } catch {
+      setError('Error de conexión con el servidor');
     } finally {
       setLoading(false);
     }

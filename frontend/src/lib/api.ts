@@ -1,13 +1,13 @@
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-console.log('DEBUG: API_URL is', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
 });
 
-// Interceptor para añadir el token a las peticiones
+// Interceptor: añadir el token JWT como Bearer en cada petición al backend
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
@@ -19,3 +19,5 @@ api.interceptors.request.use((config) => {
 });
 
 export default api;
+
+

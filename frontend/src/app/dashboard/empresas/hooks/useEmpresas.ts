@@ -8,7 +8,7 @@ export function useEmpresas() {
   const [loading, setLoading] = useState(true);
   const [syncingEmpresas, setSyncingEmpresas] = useState<Record<string, boolean>>({});
   const [syncingAll, setSyncingAll] = useState(false);
-  const { token, user } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   const fetchEmpresas = useCallback(async () => {
     try {
@@ -22,7 +22,7 @@ export function useEmpresas() {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!isAuthenticated) return;
 
     // 1. Al cargar, resetear empresas atascadas en SYNCING (por Render durmiendo)
     api.post('/empresas/reset-stuck', {}).catch(() => {});
@@ -42,7 +42,7 @@ export function useEmpresas() {
       });
       return () => { socket.disconnect(); };
     }
-  }, [token, user?.id, fetchEmpresas]);
+  }, [isAuthenticated, user?.id, fetchEmpresas]);
 
   // 2. Polling cada 15s cuando hay empresas sincronizando (para capturar completions)
   useEffect(() => {

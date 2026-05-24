@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import puppeteer from 'puppeteer';
+import puppeteer, { Page } from 'puppeteer';
 import { PrismaService } from '../prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { MailService } from '../mail/mail.service';
@@ -21,8 +21,108 @@ export class ScraperService {
   async updateSyncStatus(empresaId: string, status: string) {
     await this.prisma.empresa.update({
       where: { id: empresaId },
-      data: { estadoSincro: status } as any
+      data: { estadoSincro: status },
     });
+  }
+
+  private async handleSunatPopups(page: Page) {
+    this.logger.log('Comprobando ventanas emergentes o pantallas de validación de SUNAT en todos los frames...');
+    try {
+      // Esperar a que el DOM y los frames carguen
+      await new Promise(r => setTimeout(r, 4500));
+
+      const frames = page.frames();
+      this.logger.log(`Detectados ${frames.length} frames en total para analizar.`);
+
+      // 1. Detectar y presionar 'Finalizar' en cualquier frame
+      let clickedFinalizar = false;
+      for (const frame of frames) {
+        try {
+          const clicked = await frame.evaluate(() => {
+            const selectors = ['button', 'input[type="button"]', 'a', '[role="button"]', 'span', 'div'];
+            for (const selector of selectors) {
+              const elements = Array.from(document.querySelectorAll(selector));
+              const btn = elements.find(el => {
+                const text = el.textContent?.trim().toUpperCase() || "";
+                return text.includes('FINALIZAR') && text.length < 20;
+              });
+              if (btn) {
+                (btn as HTMLElement).click();
+                return true;
+              }
+            }
+            return false;
+          });
+          if (clicked) {
+            clickedFinalizar = true;
+            this.logger.log(`Se presionó el botón "Finalizar" en el frame: ${frame.url()}`);
+            break;
+          }
+        } catch (frameError) {
+          // Ignorar errores de CORS/seguridad en frames remotos
+        }
+      }
+
+      if (clickedFinalizar) {
+        await new Promise(r => setTimeout(r, 3000));
+      }
+
+      // 2. Detectar y presionar 'Continuar sin confirmar' en cualquier frame
+      let clickedContinuar = false;
+      for (const frame of page.frames()) {
+        try {
+          const clicked = await frame.evaluate(() => {
+            const selectors = ['button', 'input[type="button"]', 'a', '[role="button"]', 'span', 'div'];
+            for (const selector of selectors) {
+              const elements = Array.from(document.querySelectorAll(selector));
+              const btn = elements.find(el => {
+                const text = el.textContent?.trim().toUpperCase() || "";
+                return text.includes('CONTINUAR SIN CONFIRMAR') || (text.includes('CONTINUAR') && text.length < 30);
+              });
+              if (btn) {
+                (btn as HTMLElement).click();
+                return true;
+              }
+            }
+            return false;
+          });
+          if (clicked) {
+            clickedContinuar = true;
+            this.logger.log(`Se presionó el botón "Continuar sin confirmar" en el frame: ${frame.url()}`);
+            break;
+          }
+        } catch (frameError) {
+          // Ignorar
+        }
+      }
+
+      if (clickedContinuar) {
+        await new Promise(r => setTimeout(r, 4500));
+      }
+
+      // 3. Cerrar avisos genéricos o banners típicos en cualquier frame
+      for (const frame of page.frames()) {
+        try {
+          const closed = await frame.evaluate(() => {
+            const closeBtn = document.querySelector('button[aria-label="Close"], .modal-header .close, #btnCerrarAviso') as HTMLElement;
+            if (closeBtn) {
+              closeBtn.click();
+              return true;
+            }
+            return false;
+          });
+          if (closed) {
+            this.logger.log(`Se cerró un aviso/modal genérico en el frame: ${frame.url()}`);
+            await new Promise(r => setTimeout(r, 1500));
+            break;
+          }
+        } catch (frameError) {
+          // Ignorar
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`Error al manejar popups de SUNAT: ${e.message}`);
+    }
   }
 
   async checkBuzonForEmpresa(empresaId: string) {
@@ -39,7 +139,7 @@ export class ScraperService {
     const password = this.encryptionService.decrypt(empresa.claveSol);
 
     const browser = await puppeteer.launch({
-      headless: 'new' as any,
+      headless: process.env.PUPPETEER_HEADLESS === 'true',
       defaultViewport: { width: 1920, height: 1080 },
       args: [
         '--no-sandbox', 
@@ -101,6 +201,9 @@ export class ScraperService {
           page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(() => null),
           page.click('#btnAceptar')
       ]);
+      
+      // Evasión de ventanas emergentes o validación de contacto de SUNAT
+      await this.handleSunatPopups(page);
       
       // Verificación de seguridad: Comprobar que realmente estamos dentro
       const isLogged = await page.evaluate(() => {
@@ -441,7 +544,7 @@ export class ScraperService {
 
       await this.prisma.empresa.update({
         where: { id: empresaId },
-        data: { ultimaSincronizacion: new Date() } as any
+        data: { ultimaSincronizacion: new Date() },
       });
 
     } catch (error) {

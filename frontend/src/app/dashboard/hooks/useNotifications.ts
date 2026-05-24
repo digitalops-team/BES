@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 export function useNotifications() {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const token = useAuthStore((state) => state.token);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const searchParams = useSearchParams();
   const empresaFilterId = searchParams.get('empresa');
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,8 +23,8 @@ export function useNotifications() {
   }, []);
 
   useEffect(() => {
-    if (token) fetchNotificaciones();
-  }, [token, fetchNotificaciones]);
+    if (isAuthenticated) fetchNotificaciones();
+  }, [isAuthenticated, fetchNotificaciones]);
 
   const clearInbox = async () => {
     await api.delete('/notificaciones');

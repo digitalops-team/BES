@@ -11,18 +11,14 @@ import { AuthModule } from './auth/auth.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { EventsModule } from './events/events.module';
 import { MailModule } from './mail/mail.module';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { AsignacionesModule } from './asignaciones/asignaciones.module';
 import { EstadisticasModule } from './estadisticas/estadisticas.module';
-import { join } from 'path';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
-    }),
+    UploadsModule,
     ScheduleModule.forRoot(),
     PrismaModule,
     EncryptionModule,

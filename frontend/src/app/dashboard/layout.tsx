@@ -4,22 +4,28 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Building2, Bell, LogOut, LayoutDashboard, Settings, Shield, Archive, Mail, TrendingUp } from 'lucide-react';
+import api from '@/lib/api';
+import { Building2, Bell, LogOut, Settings, Shield, Archive, Mail, TrendingUp } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { token, user, logout } = useAuthStore();
+  const { isAuthenticated, user, logout } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
+  const [sinLeer, setSinLeer] = useState(0);
 
   useEffect(() => {
     setMounted(true);
-    if (!token) {
+    if (!isAuthenticated) {
       router.push('/login');
+      return;
     }
-  }, [token, router]);
+    api.get('/estadisticas')
+      .then(res => setSinLeer(res.data?.sinLeer ?? 0))
+      .catch(() => {});
+  }, [isAuthenticated, router]);
 
-  if (!mounted || !token) return null;
+  if (!mounted || !isAuthenticated) return null;
 
   const navItems = [
     {
@@ -117,7 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
           <button
-            onClick={() => { logout(); router.push('/login'); }}
+            onClick={() => { logout().then(() => router.push('/login')); }}
             className="flex items-center gap-3 w-full px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl font-medium transition-colors"
           >
             <LogOut className="w-5 h-5" />
@@ -134,7 +140,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </p>
           <button className="relative p-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-colors">
             <Bell className="w-6 h-6" />
-            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-[#111827] rounded-full"></span>
+            {sinLeer > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] bg-red-500 border-2 border-[#111827] rounded-full text-[10px] font-bold text-white flex items-center justify-center px-0.5">
+                {sinLeer > 99 ? '99+' : sinLeer}
+              </span>
+            )}
           </button>
         </header>
 

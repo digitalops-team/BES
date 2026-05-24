@@ -93,7 +93,7 @@ export const EmpresaTable: React.FC<EmpresaTableProps> = ({
                   if (!synced) return <span className="text-xs text-gray-600">—</span>;
                   return (
                     <button 
-                      onClick={() => router.push(`/dashboard?empresa=${emp.id}`)}
+                      onClick={() => router.push(`/dashboard/bandeja?empresa=${emp.id}`)}
                       className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
                         count === 0 
                           ? 'text-amber-400 bg-amber-400/10 border-amber-400/20 hover:bg-amber-400/20' 

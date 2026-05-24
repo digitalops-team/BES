@@ -12,7 +12,7 @@ function ArchivoContent() {
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null); // id de notif a eliminar
-  const token = useAuthStore((state) => state.token);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
   const canDelete = user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN';
 
@@ -28,8 +28,8 @@ function ArchivoContent() {
   }, []);
 
   useEffect(() => {
-    if (token) fetchNotificaciones();
-  }, [token, fetchNotificaciones]);
+    if (isAuthenticated) fetchNotificaciones();
+  }, [isAuthenticated, fetchNotificaciones]);
 
   const handleDelete = async (id: string) => {
     try {

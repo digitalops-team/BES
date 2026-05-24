@@ -27,6 +27,7 @@ export class CronService {
 
       for (const empresa of empresas) {
         await this.scraperQueue.add('scrapeBuzon', { empresaId: empresa.id }, {
+          jobId: `daily-${empresa.id}-${new Date().toISOString().split('T')[0]}`,
           attempts: 3,
           backoff: {
             type: 'exponential',

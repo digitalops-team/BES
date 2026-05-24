@@ -13,7 +13,7 @@ function BandejaContent() {
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const token = useAuthStore((state) => state.token);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const router = useRouter();
   const searchParams = useSearchParams();
   const empresaFilterId = searchParams.get('empresa');
@@ -31,8 +31,8 @@ function BandejaContent() {
   }, []);
 
   useEffect(() => {
-    if (token) fetchNotificaciones();
-  }, [token, fetchNotificaciones]);
+    if (isAuthenticated) fetchNotificaciones();
+  }, [isAuthenticated, fetchNotificaciones]);
 
   const markAsRead = async (id: string) => {
     try {
