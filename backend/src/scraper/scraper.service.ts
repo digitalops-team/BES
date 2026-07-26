@@ -18,6 +18,22 @@ export class ScraperService {
     private readonly mailService: MailService,
   ) {}
 
+  cleanUtf8(text: string): string {
+    if (!text) return '';
+    let result = text.trim();
+    try {
+      if (/[\u00C0-\u00FF]/.test(result) || result.includes('Ã') || result.includes('Â')) {
+        const decoded = Buffer.from(result, 'latin1').toString('utf8');
+        if (decoded && !decoded.includes('')) {
+          result = decoded.trim();
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    return result;
+  }
+
   async updateSyncStatus(empresaId: string, status: string) {
     await this.prisma.empresa.update({
       where: { id: empresaId },
@@ -478,7 +494,7 @@ export class ScraperService {
               const dateMatch = rowDateMatch;
 
               if (dateMatch) {
-                let asunto = rowData.asunto.trim();
+                let asunto = this.cleanUtf8(rowData.asunto.trim());
                 if (!asunto.toUpperCase().includes('ASUNTO:'))
                   asunto = `ASUNTO: ${asunto}`;
                 const tipoMensaje = asunto.toUpperCase().includes('NOTIFICACI')
