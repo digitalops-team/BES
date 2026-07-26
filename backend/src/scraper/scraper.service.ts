@@ -625,10 +625,86 @@ export class ScraperService {
                       }
                     }
                   } else {
-                    this.logger.warn(
-                      `⚠️ No se encontro ID interno en el DOM para: ${asunto.substring(0, 60)}`,
+                    // SEGUNDO ESCANEO DE RESPALDO: Para Resoluciones de Conclusión donde el texto
+                    // contiene "constancia" y el escaneo profundo lo descartó.
+                    // Buscamos TODOS los IDs bajarArchivo en el HTML crudo y elegimos uno
+                    // diferente al currentId (que ya capturó la constancia del primer paso).
+                    this.logger.log(
+                      `🔍 Segundo escaneo: buscando IDs alternativos en el HTML crudo...`,
                     );
-                    pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
+
+                    const allIds = await mainFrame.evaluate(() => {
+                      const matches = document.body.innerHTML.match(
+                        /bajarArchivo\/(\d{8,15})/g,
+                      );
+                      if (!matches) return [];
+                      return matches.map((m) => {
+                        const idMatch = m.match(/(\d{8,15})/);
+                        return idMatch ? idMatch[1] : '';
+                      }).filter((id) => id !== '');
+                    });
+
+                    // Buscar un ID diferente a currentId (que es la constancia) y diferente al RUC
+                    const alternativeId = allIds.find(
+                      (id) => id !== currentId && id !== empresa.ruc,
+                    );
+
+                    if (alternativeId) {
+                      fileId = alternativeId;
+                      this.logger.log(
+                        `✅ ¡ID alternativo encontrado!: ${alternativeId} (constancia era: ${currentId})`,
+                      );
+
+                      const sunatUrl = `https://ww1.sunat.gob.pe/ol-ti-itvisornoti/visor/bajarArchivo/${alternativeId}/0/0/${empresa.ruc}`;
+
+                      const base64Data = await mainFrame.evaluate(async (url) => {
+                        try {
+                          const response = await fetch(url);
+                          if (!response.ok) return null;
+                          const blob = await response.blob();
+                          return new Promise<string>((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () =>
+                              resolve(reader.result as string);
+                            reader.readAsDataURL(blob);
+                          });
+                        } catch (err) {
+                          return null;
+                        }
+                      }, sunatUrl);
+
+                      if (base64Data && base64Data.includes(',')) {
+                        const buffer = Buffer.from(
+                          base64Data.split(',')[1],
+                          'base64',
+                        );
+
+                        if (
+                          buffer.length > 1000 ||
+                          buffer.toString('utf8', 0, 4) === '%PDF'
+                        ) {
+                          const fileName = `${alternativeId}.pdf`;
+                          const filePath = path.join(uploadDir, fileName);
+                          fs.writeFileSync(filePath, buffer);
+                          const backendUrl =
+                            process.env.BACKEND_URL || 'http://localhost:4000';
+                          finalHref = `${backendUrl}/uploads/${fileName}`;
+                          this.logger.log(
+                            `🚀 ¡PDF de resolución recuperado exitosamente!: ${fileName}`,
+                          );
+                        } else {
+                          this.logger.warn(
+                            `⚠️ PDF vacío/corrupto para: ${asunto.substring(0, 60)}`,
+                          );
+                          pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
+                        }
+                      }
+                    } else {
+                      this.logger.warn(
+                        `⚠️ No se encontró ID interno en el DOM para: ${asunto.substring(0, 60)}`,
+                      );
+                      pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
+                    }
                   }
                 } catch (e) {
                   this.logger.error(
