@@ -10,6 +10,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma.service';
+import { ScraperService } from './scraper.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('scraper')
@@ -17,6 +18,7 @@ export class ScraperController {
   constructor(
     @InjectQueue('sunat-scraper-queue') private scraperQueue: Queue,
     private prisma: PrismaService,
+    private scraperService: ScraperService,
   ) {}
 
   @Post('sync/:empresaId')
@@ -123,5 +125,26 @@ export class ScraperController {
     return {
       message: 'Cola de tareas de scraping limpiada y cancelada con éxito',
     };
+  }
+
+  @Post('fix-asuntos')
+  async fixAsuntos(@Request() req: any) {
+    const { rol } = req.user;
+    if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
+      throw new ForbiddenException('Solo administradores pueden ejecutar esta operación');
+    }
+    return this.scraperService.fixCorruptAsuntos();
+  }
+
+  @Post('retry-pdf/:notificacionId')
+  async retryPdf(
+    @Param('notificacionId') notificacionId: string,
+    @Request() req: any,
+  ) {
+    const { rol } = req.user;
+    if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
+      throw new ForbiddenException('Solo administradores pueden reintentar PDFs');
+    }
+    return this.scraperService.retryPdf(notificacionId);
   }
 }

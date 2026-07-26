@@ -22,9 +22,12 @@ export class ScraperService {
     if (!text) return '';
     let result = text.trim();
     try {
-      if (/[\u00C0-\u00FF]/.test(result) || result.includes('Ã') || result.includes('Â')) {
+      // Detectar mojibake: caracteres típicos de texto UTF-8 leído como latin1
+      // Ej: "ó" leído como latin1 produce "Ã³", "°" produce "Â°"
+      if (result.includes('Ã') || result.includes('Â')) {
         const decoded = Buffer.from(result, 'latin1').toString('utf8');
-        if (decoded && !decoded.includes('')) {
+        // Verificar que la decodificación mejoró el texto (no introdujo caracteres inválidos)
+        if (decoded && !/\uFFFD/.test(decoded)) {
           result = decoded.trim();
         }
       }
@@ -815,6 +818,206 @@ export class ScraperService {
       throw error;
     } finally {
       await new Promise((r) => setTimeout(r, 5000));
+      if (browser) await browser.close();
+    }
+  }
+
+  async fixCorruptAsuntos() {
+    this.logger.log('🔧 Iniciando limpieza de asuntos corruptos en BD...');
+    const notifs = await this.prisma.notificacion.findMany({
+      where: {
+        OR: [
+          { asunto: { contains: 'Ã' } },
+          { asunto: { contains: 'Â' } },
+        ],
+      },
+      select: { id: true, asunto: true },
+    });
+
+    this.logger.log(`🔍 Encontradas ${notifs.length} notificaciones con asunto corrupto.`);
+
+    let fixed = 0;
+    for (const notif of notifs) {
+      const cleaned = this.cleanUtf8(notif.asunto);
+      if (cleaned !== notif.asunto) {
+        await this.prisma.notificacion.update({
+          where: { id: notif.id },
+          data: { asunto: cleaned },
+        });
+        fixed++;
+      }
+    }
+
+    this.logger.log(`✅ ${fixed} asuntos corregidos en BD.`);
+    return { fixed, total: notifs.length };
+  }
+
+  async retryPdf(notificacionId: string) {
+    const notif = await this.prisma.notificacion.findUnique({
+      where: { id: notificacionId },
+      include: { empresa: true },
+    });
+
+    if (!notif) throw new Error('Notificación no encontrada');
+
+    // Determinar el targetFileId: fileId guardado, o extraído del asunto
+    let targetFileId = notif.fileId;
+    if (!targetFileId || targetFileId === notif.empresa.ruc) {
+      const cleanedAsunto = notif.asunto.replace(/RUC:?\s*\d+/gi, '');
+      const numMatches = cleanedAsunto.match(/\b\d+(?:-\d+)*\b/g);
+      if (numMatches) {
+        for (const rawNum of numMatches) {
+          const digitsOnly = rawNum.replace(/\D/g, '');
+          if (digitsOnly.length >= 8 && digitsOnly.length <= 15 && digitsOnly !== notif.empresa.ruc) {
+            targetFileId = digitsOnly;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!targetFileId || targetFileId === notif.empresa.ruc) {
+      throw new Error('No se encontró un ID de archivo válido para esta notificación.');
+    }
+
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+    const fileName = `${targetFileId}.pdf`;
+    const filePath = path.join(uploadDir, fileName);
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+    const finalHref = `${backendUrl}/uploads/${fileName}`;
+
+    // Si ya existe en disco y es válido, solo actualizar BD
+    if (fs.existsSync(filePath)) {
+      const buf = fs.readFileSync(filePath);
+      if (buf.length > 1000 || buf.toString('utf8', 0, 4) === '%PDF') {
+        await this.prisma.notificacion.update({
+          where: { id: notificacionId },
+          data: { rutaArchivoPdf: finalHref, estado: 'NO_LEIDO', fileId: targetFileId },
+        });
+        return { success: true, rutaArchivoPdf: finalHref };
+      }
+    }
+
+    const empresa = notif.empresa;
+    this.logger.log(`🔄 Reintentando PDF (${targetFileId}) para ${empresa.razonSocial}...`);
+
+    const isHeadless =
+      process.env.PUPPETEER_HEADLESS?.replace(/['"]/g, '').trim() === 'true';
+
+    let browser;
+    try {
+      browser = await puppeteer.launch({
+        headless: isHeadless,
+        defaultViewport: { width: 1920, height: 1080 },
+        args: [
+          '--no-sandbox', '--disable-setuid-sandbox', '--start-maximized',
+          '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run',
+          '--no-zygote', '--incognito',
+          '--disable-features=PasswordLeakDetection,AutofillServerCommunication',
+          '--disable-save-password-bubble', '--password-store=basic',
+        ],
+      });
+
+      const context = await browser.createBrowserContext();
+      const page = await context.newPage();
+      page.setDefaultNavigationTimeout(60000);
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+      await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-ES,es;q=0.9' });
+
+      const password = this.encryptionService.decrypt(empresa.claveSol);
+
+      // Login en portal SUNAT
+      let connected = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          await page.goto('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm', {
+            waitUntil: 'networkidle0', timeout: 60000,
+          });
+          connected = true;
+          break;
+        } catch (e) {
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+      }
+      if (!connected) throw new Error('No se pudo conectar al portal de SUNAT.');
+
+      await page.waitForSelector('#txtRuc', { timeout: 20000 });
+      await page.type('#txtRuc', empresa.ruc);
+      await page.type('#txtUsuario', empresa.usuarioSol);
+      await page.type('#txtContrasena', password);
+      await new Promise((r) => setTimeout(r, 1000));
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }).catch(() => null),
+        page.click('#btnAceptar'),
+      ]);
+      await this.handleSunatPopups(page);
+
+      // Navegar al Buzón para inicializar la sesión del visor
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const buzonButton = await page.evaluateHandle(() =>
+          [...document.querySelectorAll('a, button')].find((el) =>
+            el.textContent?.includes('Buzón Electrónico'),
+          ),
+        );
+        if (buzonButton && (buzonButton as any).asElement()) {
+          await (buzonButton as any).asElement().click();
+        } else {
+          await page.click('#aBuzon, .icon-buzon, [title*="Buzón"]').catch(() => null);
+        }
+      } catch {
+        await page.goto('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?pestana=*&agrupacion=*', { waitUntil: 'networkidle2' });
+      }
+
+      // Esperar a que cargue el visor del buzón
+      await new Promise((r) => setTimeout(r, 8000));
+
+      const frames = page.frames();
+      const mainFrame = frames.find((f) => f.url().includes('visor') || f.url().includes('master')) || page.mainFrame();
+
+      const sunatUrl = `https://ww1.sunat.gob.pe/ol-ti-itvisornoti/visor/bajarArchivo/${targetFileId}/0/0/${empresa.ruc}`;
+
+      let pdfBuffer: Buffer | null = null;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          const base64Data = await mainFrame.evaluate(async (url) => {
+            try {
+              const response = await fetch(url);
+              if (!response.ok) return null;
+              const blob = await response.blob();
+              return new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+            } catch { return null; }
+          }, sunatUrl);
+
+          if (base64Data && base64Data.includes(',')) {
+            const buf = Buffer.from(base64Data.split(',')[1], 'base64');
+            if (buf.length > 1000 || buf.toString('utf8', 0, 4) === '%PDF') {
+              pdfBuffer = buf;
+              break;
+            }
+          }
+        } catch { /* continue */ }
+        if (attempt < 5) await new Promise((r) => setTimeout(r, attempt * 1500));
+      }
+
+      if (pdfBuffer) {
+        fs.writeFileSync(filePath, pdfBuffer);
+        await this.prisma.notificacion.update({
+          where: { id: notificacionId },
+          data: { rutaArchivoPdf: finalHref, estado: 'NO_LEIDO', fileId: targetFileId },
+        });
+        this.logger.log(`✅ PDF recuperado exitosamente: ${fileName}`);
+        return { success: true, rutaArchivoPdf: finalHref };
+      } else {
+        throw new Error('SUNAT no entregó el PDF tras 5 reintentos. Puede ser un comunicado sin adjunto.');
+      }
+    } finally {
       if (browser) await browser.close();
     }
   }
