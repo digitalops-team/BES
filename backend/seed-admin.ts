@@ -11,6 +11,7 @@ async function main() {
     where: { email },
     update: {
       rol: 'SUPER_ADMIN',
+      password,
     },
     create: {
       email,

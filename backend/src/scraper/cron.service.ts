@@ -17,23 +17,29 @@ export class CronService {
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
   async handleDailyScraping() {
     this.logger.log('Iniciando encolamiento diario de tareas de scraping...');
-    
+
     try {
       const empresas = await this.prisma.empresa.findMany({
-        select: { id: true, ruc: true }
+        select: { id: true, ruc: true },
       });
 
-      this.logger.log(`Se encontraron ${empresas.length} empresas para procesar.`);
+      this.logger.log(
+        `Se encontraron ${empresas.length} empresas para procesar.`,
+      );
 
       for (const empresa of empresas) {
-        await this.scraperQueue.add('scrapeBuzon', { empresaId: empresa.id }, {
-          jobId: `daily-${empresa.id}-${new Date().toISOString().split('T')[0]}`,
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 1000 * 60 * 5, // 5 minutos entre reintentos
-          }
-        });
+        await this.scraperQueue.add(
+          'scrapeBuzon',
+          { empresaId: empresa.id },
+          {
+            jobId: `daily-${empresa.id}-${new Date().toISOString().split('T')[0]}`,
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 1000 * 60 * 5, // 5 minutos entre reintentos
+            },
+          },
+        );
         this.logger.log(`Tarea encolada para la empresa RUC: ${empresa.ruc}`);
       }
     } catch (error) {

@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,18 +12,23 @@ export class NotificacionesService {
   constructor(private prisma: PrismaService) {}
 
   /** Obtiene los IDs de empresas visibles para el usuario según su rol */
-  private async getEmpresaIds(usuarioId: string, rol: string): Promise<string[]> {
+  private async getEmpresaIds(
+    usuarioId: string,
+    rol: string,
+  ): Promise<string[]> {
     if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
       // SUPER_ADMIN y ADMIN ven notificaciones de TODAS las empresas del sistema
-      const empresas = await this.prisma.empresa.findMany({ select: { id: true } });
-      return empresas.map(e => e.id);
+      const empresas = await this.prisma.empresa.findMany({
+        select: { id: true },
+      });
+      return empresas.map((e) => e.id);
     }
     // USUARIO_LOCAL: solo las empresas asignadas a él
     const asignaciones = await this.prisma.empresaAsignacion.findMany({
       where: { usuarioId },
-      select: { empresaId: true }
+      select: { empresaId: true },
     });
-    return asignaciones.map(a => a.empresaId);
+    return asignaciones.map((a) => a.empresaId);
   }
 
   /** BANDEJA: notificaciones que este usuario AÚN NO ha leído */
@@ -30,12 +39,12 @@ export class NotificacionesService {
     return this.prisma.notificacion.findMany({
       where: {
         empresaId: { in: empresaIds },
-        lecturas: { none: { usuarioId } }  // Sin lectura para este usuario
+        lecturas: { none: { usuarioId } }, // Sin lectura para este usuario
       },
       include: {
-        empresa: { select: { id: true, razonSocial: true, ruc: true } }
+        empresa: { select: { id: true, razonSocial: true, ruc: true } },
       },
-      orderBy: { fechaMensaje: 'desc' }
+      orderBy: { fechaMensaje: 'desc' },
     });
   }
 
@@ -47,12 +56,12 @@ export class NotificacionesService {
     return this.prisma.notificacion.findMany({
       where: {
         empresaId: { in: empresaIds },
-        lecturas: { some: { usuarioId } }  // Con lectura de este usuario
+        lecturas: { some: { usuarioId } }, // Con lectura de este usuario
       },
       include: {
-        empresa: { select: { id: true, razonSocial: true, ruc: true } }
+        empresa: { select: { id: true, razonSocial: true, ruc: true } },
       },
-      orderBy: { fechaMensaje: 'desc' }
+      orderBy: { fechaMensaje: 'desc' },
     });
   }
 
@@ -61,7 +70,7 @@ export class NotificacionesService {
     return this.prisma.notificacionLectura.upsert({
       where: { notificacionId_usuarioId: { notificacionId, usuarioId } },
       create: { notificacionId, usuarioId },
-      update: {}  // Si ya existe, no hacer nada
+      update: {}, // Si ya existe, no hacer nada
     });
   }
 
@@ -74,16 +83,16 @@ export class NotificacionesService {
     const sinLeer = await this.prisma.notificacion.findMany({
       where: {
         empresaId: { in: empresaIds },
-        lecturas: { none: { usuarioId } }
+        lecturas: { none: { usuarioId } },
       },
-      select: { id: true }
+      select: { id: true },
     });
 
     // Crear lecturas para todas
-    const lecturas = sinLeer.map(n => ({ notificacionId: n.id, usuarioId }));
+    const lecturas = sinLeer.map((n) => ({ notificacionId: n.id, usuarioId }));
     await this.prisma.notificacionLectura.createMany({
       data: lecturas,
-      skipDuplicates: true
+      skipDuplicates: true,
     });
 
     return { count: lecturas.length };
@@ -109,7 +118,9 @@ export class NotificacionesService {
   /** Elimina UNA notificación (solo SUPER_ADMIN y ADMIN) + su PDF del disco */
   async removeOne(id: string, usuarioId: string, rol: string) {
     if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
-      throw new ForbiddenException('Solo administradores pueden eliminar notificaciones');
+      throw new ForbiddenException(
+        'Solo administradores pueden eliminar notificaciones',
+      );
     }
 
     const notif = await this.prisma.notificacion.findUnique({ where: { id } });
@@ -131,14 +142,14 @@ export class NotificacionesService {
     // Recopilar rutas de PDF antes de borrar
     const notifs = await this.prisma.notificacion.findMany({
       where: { empresaId: { in: empresaIds } },
-      select: { rutaArchivoPdf: true }
+      select: { rutaArchivoPdf: true },
     });
 
     // Borrar PDFs del disco
-    notifs.forEach(n => this.deletePdfFile(n.rutaArchivoPdf));
+    notifs.forEach((n) => this.deletePdfFile(n.rutaArchivoPdf));
 
     return this.prisma.notificacion.deleteMany({
-      where: { empresaId: { in: empresaIds } }
+      where: { empresaId: { in: empresaIds } },
     });
   }
 }

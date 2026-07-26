@@ -1,4 +1,11 @@
-import { Controller, Post, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Param,
+  UseGuards,
+  Request,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -9,39 +16,48 @@ import { PrismaService } from '../prisma.service';
 export class ScraperController {
   constructor(
     @InjectQueue('sunat-scraper-queue') private scraperQueue: Queue,
-    private prisma: PrismaService
+    private prisma: PrismaService,
   ) {}
 
   @Post('sync/:empresaId')
-  async syncEmpresa(@Param('empresaId') empresaId: string, @Request() req: any) {
+  async syncEmpresa(
+    @Param('empresaId') empresaId: string,
+    @Request() req: any,
+  ) {
     const { id: callerId, rol } = req.user;
     let empresa: any = null;
 
     if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
       // SUPER_ADMIN y ADMIN pueden sincronizar cualquier empresa del sistema
       empresa = await this.prisma.empresa.findFirst({
-        where: { id: empresaId }
+        where: { id: empresaId },
       });
     } else {
       // USUARIO_LOCAL: solo puede sincronizar las que tiene asignadas
       const asignacion = await this.prisma.empresaAsignacion.findFirst({
         where: { usuarioId: callerId, empresaId },
-        include: { empresa: true }
+        include: { empresa: true },
       });
       if (asignacion) empresa = asignacion.empresa;
     }
 
     if (!empresa) {
-      throw new ForbiddenException('Empresa no encontrada o no tienes permiso para sincronizarla');
+      throw new ForbiddenException(
+        'Empresa no encontrada o no tienes permiso para sincronizarla',
+      );
     }
 
     // ownerUserId = quien recibe el email (SUPER_ADMIN dueño)
     // callerId    = quien recibe el WebSocket (el que hizo clic)
-    await this.scraperQueue.add('scrape-sunat', {
-      empresaId,
-      usuarioId: empresa.usuarioId,  // para el email y logs
-      callerUserId: callerId          // para el WebSocket de progreso
-    }, { priority: 1 });
+    await this.scraperQueue.add(
+      'scrape-sunat',
+      {
+        empresaId,
+        usuarioId: empresa.usuarioId, // para el email y logs
+        callerUserId: callerId, // para el WebSocket de progreso
+      },
+      { priority: 1 },
+    );
 
     return { message: 'Sincronización encolada', status: 'pending' };
   }
@@ -54,37 +70,58 @@ export class ScraperController {
     if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
       // SUPER_ADMIN y ADMIN sincronizan todas las empresas del sistema
       empresas = await this.prisma.empresa.findMany({
-        select: { id: true, usuarioId: true }
+        select: { id: true, usuarioId: true },
       });
     } else {
       // USUARIO_LOCAL: solo las asignadas
       const asignaciones = await this.prisma.empresaAsignacion.findMany({
         where: { usuarioId: callerId },
-        include: { empresa: { select: { id: true, usuarioId: true } } }
+        include: { empresa: { select: { id: true, usuarioId: true } } },
       });
-      empresas = asignaciones.map(a => a.empresa);
+      empresas = asignaciones.map((a) => a.empresa);
     }
 
     if (!empresas || empresas.length === 0) {
       return { message: 'No hay empresas para sincronizar', count: 0 };
     }
 
-    const jobs = empresas.map(empresa => ({
+    const jobs = empresas.map((empresa) => ({
       name: 'scrape-sunat',
       data: {
         empresaId: empresa.id,
-        usuarioId: empresa.usuarioId,   // para el email
-        callerUserId: callerId           // para el WebSocket
+        usuarioId: empresa.usuarioId, // para el email
+        callerUserId: callerId, // para el WebSocket
       },
-      opts: { priority: 2 }
+      opts: { priority: 2 },
     }));
 
     await this.scraperQueue.addBulk(jobs);
 
     return {
       message: 'Sincronización masiva encolada',
-      count: empresas.length
+      count: empresas.length,
+    };
+  }
+
+  @Post('clear-queue')
+  async clearQueue(@Request() req: any) {
+    const { rol } = req.user;
+    if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
+      throw new ForbiddenException(
+        'Solo los administradores pueden vaciar la cola de tareas',
+      );
+    }
+
+    // Vaciar y limpiar la cola
+    await this.scraperQueue.drain(true);
+    await this.scraperQueue.clean(0, 1000, 'active');
+    await this.scraperQueue.clean(0, 1000, 'wait');
+    await this.scraperQueue.clean(0, 1000, 'delayed');
+    await this.scraperQueue.clean(0, 1000, 'paused');
+    await this.scraperQueue.clean(0, 1000, 'failed');
+
+    return {
+      message: 'Cola de tareas de scraping limpiada y cancelada con éxito',
     };
   }
 }
-

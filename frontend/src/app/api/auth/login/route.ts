@@ -3,7 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch (error) {
+    return NextResponse.json({ message: 'Cuerpo de petición inválido o vacío' }, { status: 400 });
+  }
 
   try {
     const res = await fetch(`${API_URL}/auth/login`, {

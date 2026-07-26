@@ -10,31 +10,31 @@ export class AsignacionesService {
     const todasEmpresas = await this.prisma.empresa.findMany({
       where: { usuarioId: adminId },
       select: { id: true, ruc: true, razonSocial: true, estadoSincro: true },
-      orderBy: { razonSocial: 'asc' }
+      orderBy: { razonSocial: 'asc' },
     });
 
     const asignadas = await this.prisma.empresaAsignacion.findMany({
       where: { usuarioId },
-      select: { empresaId: true }
+      select: { empresaId: true },
     });
 
-    const asignadasSet = new Set(asignadas.map(a => a.empresaId));
+    const asignadasSet = new Set(asignadas.map((a) => a.empresaId));
 
-    return todasEmpresas.map(emp => ({
+    return todasEmpresas.map((emp) => ({
       ...emp,
-      asignada: asignadasSet.has(emp.id)
+      asignada: asignadasSet.has(emp.id),
     }));
   }
 
   async asignar(usuarioId: string, empresaId: string) {
     return this.prisma.empresaAsignacion.create({
-      data: { usuarioId, empresaId }
+      data: { usuarioId, empresaId },
     });
   }
 
   async revocar(usuarioId: string, empresaId: string) {
     return this.prisma.empresaAsignacion.deleteMany({
-      where: { usuarioId, empresaId }
+      where: { usuarioId, empresaId },
     });
   }
 
@@ -42,8 +42,8 @@ export class AsignacionesService {
   async getEmpresaIdsAsignadas(usuarioId: string): Promise<string[]> {
     const asignaciones = await this.prisma.empresaAsignacion.findMany({
       where: { usuarioId },
-      select: { empresaId: true }
+      select: { empresaId: true },
     });
-    return asignaciones.map(a => a.empresaId);
+    return asignaciones.map((a) => a.empresaId);
   }
 }

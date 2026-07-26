@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -8,6 +18,20 @@ import { Roles } from '../auth/roles.decorator';
 @Controller('usuarios')
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
+
+  // Actualizar perfil del usuario logueado (cualquier rol)
+  @Patch('profile/me')
+  updateMe(
+    @Request() req: any,
+    @Body() body: { nombre?: string; email?: string; password?: string },
+  ) {
+    const cleanData = {
+      nombre: body.nombre,
+      email: body.email,
+      password: body.password,
+    };
+    return this.usuariosService.update(req.user.id, cleanData);
+  }
 
   // SUPER_ADMIN y ADMIN pueden ver la lista de usuarios
   @Roles('SUPER_ADMIN', 'ADMIN')
@@ -19,8 +43,16 @@ export class UsuariosController {
   // SUPER_ADMIN y ADMIN pueden crear usuarios
   @Roles('SUPER_ADMIN', 'ADMIN')
   @Post()
-  create(@Body() body: { email: string; password: string; nombre: string; rol: string }, @Request() req: any) {
-    return this.usuariosService.create(body, req.user.rol);
+  create(
+    @Body()
+    body: {
+      email: string;
+      password: string;
+      nombre: string;
+      rol: string;
+    },
+  ) {
+    return this.usuariosService.create(body);
   }
 
   // Ver detalle de un usuario con sus empresas asignadas (SUPER_ADMIN y ADMIN)
@@ -44,4 +76,3 @@ export class UsuariosController {
     return this.usuariosService.remove(id);
   }
 }
-

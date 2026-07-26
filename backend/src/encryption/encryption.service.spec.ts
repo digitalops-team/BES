@@ -5,6 +5,7 @@ describe('EncryptionService', () => {
   let service: EncryptionService;
 
   beforeEach(async () => {
+    process.env.ENCRYPTION_KEY = 'cb7a556721efeaa43fb244de5b95a6a1';
     const module: TestingModule = await Test.createTestingModule({
       providers: [EncryptionService],
     }).compile();

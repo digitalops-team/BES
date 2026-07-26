@@ -6,11 +6,13 @@ import { EncryptionService } from '../encryption/encryption.service';
 export class EmpresasService {
   constructor(
     private prisma: PrismaService,
-    private encryptionService: EncryptionService
+    private encryptionService: EncryptionService,
   ) {}
 
   async create(createEmpresaDto: any, usuarioId: string) {
-    const claveEncriptada = this.encryptionService.encrypt(createEmpresaDto.claveSol);
+    const claveEncriptada = this.encryptionService.encrypt(
+      createEmpresaDto.claveSol,
+    );
     return this.prisma.empresa.create({
       data: {
         ruc: createEmpresaDto.ruc,
@@ -25,7 +27,7 @@ export class EmpresasService {
   async findAllByUser(usuarioId: string, userRol: string) {
     const anoActual = new Date().getFullYear();
     const inicioAnio = new Date(`${anoActual}-01-01T00:00:00.000Z`);
-    const finAnio    = new Date(`${anoActual}-12-31T23:59:59.999Z`);
+    const finAnio = new Date(`${anoActual}-12-31T23:59:59.999Z`);
 
     // ADMIN y SUPER_ADMIN ven TODAS las empresas con asignaciones completas
     if (userRol === 'SUPER_ADMIN' || userRol === 'ADMIN') {
@@ -45,28 +47,28 @@ export class EmpresasService {
           _count: {
             select: {
               notificaciones: {
-                where: { fechaMensaje: { gte: inicioAnio, lte: finAnio } }
-              }
-            }
+                where: { fechaMensaje: { gte: inicioAnio, lte: finAnio } },
+              },
+            },
           },
           asignaciones: {
             include: {
               usuario: {
-                select: { id: true, nombre: true, email: true }
-              }
-            }
-          }
+                select: { id: true, nombre: true, email: true },
+              },
+            },
+          },
         },
-        orderBy: { razonSocial: 'asc' }
+        orderBy: { razonSocial: 'asc' },
       });
     }
 
     // Usuarios secundarios: solo ven sus empresas asignadas
     const asignaciones = await this.prisma.empresaAsignacion.findMany({
       where: { usuarioId },
-      select: { empresaId: true }
+      select: { empresaId: true },
     });
-    const empresaIds = asignaciones.map(a => a.empresaId);
+    const empresaIds = asignaciones.map((a) => a.empresaId);
     if (empresaIds.length === 0) return [];
 
     return this.prisma.empresa.findMany({
@@ -83,26 +85,27 @@ export class EmpresasService {
         _count: {
           select: {
             notificaciones: {
-              where: { fechaMensaje: { gte: inicioAnio, lte: finAnio } }
-            }
-          }
-        }
+              where: { fechaMensaje: { gte: inicioAnio, lte: finAnio } },
+            },
+          },
+        },
       },
-      orderBy: { razonSocial: 'asc' }
+      orderBy: { razonSocial: 'asc' },
     });
   }
 
-
   findOne(id: string, usuarioId: string) {
     return this.prisma.empresa.findFirst({
-      where: { id, usuarioId }
+      where: { id, usuarioId },
     });
   }
 
   async update(id: string, updateEmpresaDto: any, usuarioId: string) {
     const dataToUpdate: any = { ...updateEmpresaDto };
     if (updateEmpresaDto.claveSol) {
-      dataToUpdate.claveSol = this.encryptionService.encrypt(updateEmpresaDto.claveSol);
+      dataToUpdate.claveSol = this.encryptionService.encrypt(
+        updateEmpresaDto.claveSol,
+      );
     }
     return this.prisma.empresa.updateMany({
       where: { id, usuarioId },
@@ -112,7 +115,9 @@ export class EmpresasService {
 
   async remove(id: string, usuarioId: string) {
     await this.prisma.notificacion.deleteMany({ where: { empresaId: id } });
-    await this.prisma.empresaAsignacion.deleteMany({ where: { empresaId: id } });
+    await this.prisma.empresaAsignacion.deleteMany({
+      where: { empresaId: id },
+    });
     return this.prisma.empresa.deleteMany({ where: { id, usuarioId } });
   }
 
@@ -125,9 +130,9 @@ export class EmpresasService {
     const result = await this.prisma.empresa.updateMany({
       where: {
         estadoSincro: 'SYNCING',
-        updatedAt: { lt: tenMinutesAgo }
+        updatedAt: { lt: tenMinutesAgo },
       },
-      data: { estadoSincro: 'IDLE' }
+      data: { estadoSincro: 'IDLE' },
     });
     return { reset: result.count };
   }

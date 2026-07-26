@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, MailOpen, Clock, FileText, AlertTriangle, Archive, Trash2 } from 'lucide-react';
+import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, FilterX as FilterIcon, MailOpen, Clock, FileText, AlertTriangle, Archive, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -11,6 +11,8 @@ function ArchivoContent() {
   const [loading, setLoading] = useState(true);
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null); // id de notif a eliminar
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
@@ -43,11 +45,24 @@ function ArchivoContent() {
   };
 
   const filteredData = notificaciones.filter(notif => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return notif.empresa.ruc.includes(term) ||
-      notif.empresa.razonSocial.toLowerCase().includes(term) ||
-      notif.asunto.toLowerCase().includes(term);
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matchesText = notif.empresa.ruc.includes(term) ||
+        notif.empresa.razonSocial.toLowerCase().includes(term) ||
+        notif.asunto.toLowerCase().includes(term);
+      if (!matchesText) return false;
+    }
+    if (startDate) {
+      const start = new Date(startDate + 'T00:00:00');
+      const notifDate = new Date(notif.fechaMensaje);
+      if (notifDate < start) return false;
+    }
+    if (endDate) {
+      const end = new Date(endDate + 'T23:59:59');
+      const notifDate = new Date(notif.fechaMensaje);
+      if (notifDate > end) return false;
+    }
+    return true;
   });
 
   return (
@@ -65,20 +80,83 @@ function ArchivoContent() {
         </span>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-4 bg-[#111827] p-2 pl-4 rounded-2xl border border-white/5">
-        <SearchIcon className="text-gray-500 w-5 h-5" />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por RUC, Empresa o Asunto..."
-          className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-500 py-2"
-        />
-        {searchTerm && (
-          <button onClick={() => setSearchTerm('')} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-            <XIcon className="w-4 h-4" />
-          </button>
+      {/* Search & Date Filters */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-[#111827] p-4 rounded-3xl border border-white/5">
+          {/* Buscador de Texto (6 columnas) */}
+          <div className="md:col-span-6 flex items-center gap-3 bg-white/[0.02] px-4 py-1.5 rounded-2xl border border-white/5">
+            <SearchIcon className="text-gray-500 w-5 h-5 flex-shrink-0" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por RUC, Empresa o Asunto..."
+              className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-500 py-2 text-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="p-1.5 text-gray-500 hover:text-white rounded-lg transition-colors"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Input Fecha Desde (3 columnas) */}
+          <div className="md:col-span-3 flex items-center gap-2 bg-white/[0.02] px-4 py-1.5 rounded-2xl border border-white/5">
+            <span className="text-xs text-gray-500 font-semibold uppercase flex-shrink-0">Desde:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="flex-1 bg-transparent border-none text-white outline-none text-sm [color-scheme:dark] cursor-pointer"
+            />
+            {startDate && (
+              <button
+                onClick={() => setStartDate('')}
+                className="p-1 text-gray-500 hover:text-white rounded-lg transition-colors"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Input Fecha Hasta (3 columnas) */}
+          <div className="md:col-span-3 flex items-center gap-2 bg-white/[0.02] px-4 py-1.5 rounded-2xl border border-white/5">
+            <span className="text-xs text-gray-500 font-semibold uppercase flex-shrink-0">Hasta:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="flex-1 bg-transparent border-none text-white outline-none text-sm [color-scheme:dark] cursor-pointer"
+            />
+            {endDate && (
+              <button
+                onClick={() => setEndDate('')}
+                className="p-1 text-gray-500 hover:text-white rounded-lg transition-colors"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Botones de acción de filtros activos */}
+        {(searchTerm || startDate || endDate) && (
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl font-medium text-xs transition-colors border border-white/5"
+            >
+              <XIcon className="w-3.5 h-3.5" />
+              Limpiar Filtros
+            </button>
+          </div>
         )}
       </div>
 

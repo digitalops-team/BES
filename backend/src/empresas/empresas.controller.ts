@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, Request, Patch } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  Patch,
+} from '@nestjs/common';
 import { EmpresasService } from './empresas.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma.service';
@@ -12,10 +22,15 @@ export class EmpresasController {
   ) {}
 
   /** Obtiene el ID del SUPER_ADMIN dueño del sistema (para que ADMIN pueda crear empresas bajo su nombre) */
-  private async getSuperAdminId(callerRol: string, callerId: string): Promise<string> {
+  private async getSuperAdminId(
+    callerRol: string,
+    callerId: string,
+  ): Promise<string> {
     if (callerRol === 'SUPER_ADMIN') return callerId;
     // ADMIN: buscar al SUPER_ADMIN del sistema
-    const superAdmin = await this.prisma.usuario.findFirst({ where: { rol: 'SUPER_ADMIN' } });
+    const superAdmin = await this.prisma.usuario.findFirst({
+      where: { rol: 'SUPER_ADMIN' },
+    });
     return superAdmin?.id ?? callerId;
   }
 
@@ -36,7 +51,11 @@ export class EmpresasController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateEmpresaDto: any, @Request() req: any) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateEmpresaDto: any,
+    @Request() req: any,
+  ) {
     const ownerId = await this.getSuperAdminId(req.user.rol, req.user.id);
     return this.empresasService.update(id, updateEmpresaDto, ownerId);
   }
@@ -53,4 +72,3 @@ export class EmpresasController {
     return this.empresasService.resetStuckSync();
   }
 }
-

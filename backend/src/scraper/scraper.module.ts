@@ -28,6 +28,6 @@ import { ScraperController } from './scraper.controller';
     }),
   ],
   controllers: [ScraperController],
-  providers: [ScraperService, ScraperProcessor, CronService]
+  providers: [ScraperService, ScraperProcessor, CronService],
 })
 export class ScraperModule {}

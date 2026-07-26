@@ -6,6 +6,7 @@ interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   setAuth: (token: string, user: User) => void;
+  setUser: (user: User) => void;
   logout: () => Promise<void>;
 }
 
@@ -17,6 +18,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
     set({ token, isAuthenticated: true, user });
+  },
+  setUser: (user) => {
+    localStorage.setItem('user', JSON.stringify(user));
+    set({ user });
   },
   logout: async () => {
     // También limpiar la cookie httpOnly si existe

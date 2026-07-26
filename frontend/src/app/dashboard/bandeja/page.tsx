@@ -6,6 +6,7 @@ import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as
 import ConfirmModal from '@/components/ConfirmModal';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 function BandejaContent() {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
@@ -13,6 +14,9 @@ function BandejaContent() {
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const { decrementSinLeer, fetchStats } = useNotificationStore();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,6 +43,7 @@ function BandejaContent() {
       await api.patch(`/notificaciones/${id}/read`);
       // Remove from list immediately
       setNotificaciones(prev => prev.filter(n => n.id !== id));
+      decrementSinLeer();
     } catch (error) {
       console.error("Error marking as read", error);
     }
@@ -53,6 +58,7 @@ function BandejaContent() {
     // Marcar todo como leído para ESTE usuario (no elimina, no afecta a otros)
     await api.patch('/notificaciones/mark-all-read');
     await fetchNotificaciones();
+    fetchStats();
   };
 
   const filteredData = notificaciones.filter(notif => {
@@ -62,6 +68,16 @@ function BandejaContent() {
       if (!notif.empresa.ruc.includes(term) && 
           !notif.empresa.razonSocial.toLowerCase().includes(term) && 
           !notif.asunto.toLowerCase().includes(term)) return false;
+    }
+    if (startDate) {
+      const start = new Date(startDate + 'T00:00:00');
+      const notifDate = new Date(notif.fechaMensaje);
+      if (notifDate < start) return false;
+    }
+    if (endDate) {
+      const end = new Date(endDate + 'T23:59:59');
+      const notifDate = new Date(notif.fechaMensaje);
+      if (notifDate > end) return false;
     }
     return true;
   });
@@ -87,24 +103,93 @@ function BandejaContent() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-4 bg-[#111827] p-2 pl-4 rounded-2xl border border-white/5">
-        <SearchIcon className="text-gray-500 w-5 h-5" />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por RUC, Empresa o Asunto..."
-          className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-500 py-2"
-        />
-        {empresaFilterId && (
-          <button
-            onClick={() => router.push('/dashboard/bandeja')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-medium transition-colors border border-red-500/20"
-          >
-            <FilterIcon className="w-4 h-4" />
-            Quitar Filtro
-          </button>
+      {/* Search & Date Filters */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-[#111827] p-4 rounded-3xl border border-white/5">
+          {/* Buscador de Texto (6 columnas) */}
+          <div className="md:col-span-6 flex items-center gap-3 bg-white/[0.02] px-4 py-1.5 rounded-2xl border border-white/5">
+            <SearchIcon className="text-gray-500 w-5 h-5 flex-shrink-0" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por RUC, Empresa o Asunto..."
+              className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-500 py-2 text-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="p-1 text-gray-500 hover:text-white rounded-lg transition-colors"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Input Fecha Desde (3 columnas) */}
+          <div className="md:col-span-3 flex items-center gap-2 bg-white/[0.02] px-4 py-1.5 rounded-2xl border border-white/5">
+            <span className="text-xs text-gray-500 font-semibold uppercase flex-shrink-0">Desde:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="flex-1 bg-transparent border-none text-white outline-none text-sm [color-scheme:dark] cursor-pointer"
+            />
+            {startDate && (
+              <button
+                onClick={() => setStartDate('')}
+                className="p-1 text-gray-500 hover:text-white rounded-lg transition-colors"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Input Fecha Hasta (3 columnas) */}
+          <div className="md:col-span-3 flex items-center gap-2 bg-white/[0.02] px-4 py-1.5 rounded-2xl border border-white/5">
+            <span className="text-xs text-gray-500 font-semibold uppercase flex-shrink-0">Hasta:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="flex-1 bg-transparent border-none text-white outline-none text-sm [color-scheme:dark] cursor-pointer"
+            />
+            {endDate && (
+              <button
+                onClick={() => setEndDate('')}
+                className="p-1 text-gray-500 hover:text-white rounded-lg transition-colors"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Botones de acción de filtros activos */}
+        {(searchTerm || startDate || endDate || empresaFilterId) && (
+          <div className="flex items-center justify-end gap-3">
+            {empresaFilterId && (
+              <button
+                onClick={() => router.push('/dashboard/bandeja')}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-medium text-xs transition-colors border border-red-500/20"
+              >
+                <FilterIcon className="w-3.5 h-3.5" />
+                Quitar Filtro Empresa
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStartDate('');
+                setEndDate('');
+                if (empresaFilterId) router.push('/dashboard/bandeja');
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl font-medium text-xs transition-colors border border-white/5"
+            >
+              <XIcon className="w-3.5 h-3.5" />
+              Limpiar Filtros
+            </button>
+          </div>
         )}
       </div>
 

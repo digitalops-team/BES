@@ -7,7 +7,32 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
 
   constructor() {
-    this.initEthereal();
+    this.initMail();
+  }
+
+  private async initMail() {
+    const host = process.env.MAIL_HOST;
+    const port = process.env.MAIL_PORT;
+    const user = process.env.MAIL_USER;
+    const pass = process.env.MAIL_PASS;
+
+    if (host && port && user && pass) {
+      this.transporter = nodemailer.createTransport({
+        host,
+        port: parseInt(port),
+        secure: port === '465', // true para puerto 465 (SSL), false para otros como 587 (STARTTLS)
+        auth: {
+          user,
+          pass,
+        },
+      });
+      this.logger.log(`SMTP de producción configurado: ${host} (${user})`);
+    } else {
+      this.logger.log(
+        'SMTP de producción no configurado. Inicializando cuenta de prueba Ethereal...',
+      );
+      this.initEthereal();
+    }
   }
 
   private async initEthereal() {
@@ -36,6 +61,8 @@ export class MailService {
       return;
     }
 
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+
     const info = await this.transporter.sendMail({
       from: '"BES Alertas" <alertas@bes.com>',
       to,
@@ -47,26 +74,38 @@ export class MailService {
           <p><strong>Asunto del documento:</strong> ${asunto}</p>
           <p>Por favor, inicie sesión en su panel de BES para revisar el documento PDF inmediatamente y evitar multas o embargos.</p>
           <br/>
-          <a href="http://localhost:3001/dashboard" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver en BES Panel</a>
+          <a href="${frontendUrl}/dashboard" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver en BES Panel</a>
         </div>
       `,
     });
 
-    this.logger.log(`Mensaje urgente enviado a ${to}. URL Ethereal: ${nodemailer.getTestMessageUrl(info)}`);
+    this.logger.log(
+      `Mensaje urgente enviado a ${to}. URL Ethereal: ${nodemailer.getTestMessageUrl(info)}`,
+    );
   }
 
-  async sendPdfFailureSummary(to: string, empresaNombre: string, fallos: { asunto: string; fecha: string }[]) {
+  async sendPdfFailureSummary(
+    to: string,
+    empresaNombre: string,
+    fallos: { asunto: string; fecha: string }[],
+  ) {
     if (!this.transporter) {
       this.logger.warn('Transporter no inicializado aún');
       return;
     }
 
-    const listaHtml = fallos.map((f, i) => `
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+
+    const listaHtml = fallos
+      .map(
+        (f, i) => `
       <tr style="background:${i % 2 === 0 ? '#f9f9f9' : '#fff'}">
         <td style="padding:8px 12px; border-bottom:1px solid #eee;">${f.fecha}</td>
         <td style="padding:8px 12px; border-bottom:1px solid #eee;">${f.asunto}</td>
       </tr>
-    `).join('');
+    `,
+      )
+      .join('');
 
     const info = await this.transporter.sendMail({
       from: '"BES Alertas" <alertas@bes.com>',
@@ -89,11 +128,13 @@ export class MailService {
           </table>
           <br/>
           <p style="color:#666; font-size:13px;">Los títulos de estos documentos <strong>sí fueron guardados</strong> en el panel con estado "SIN PDF". Puede revisarlos iniciando sesión.</p>
-          <a href="http://localhost:3001/dashboard" style="background-color:#d97706; color:white; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold; display:inline-block; margin-top:10px;">Ver en BES Panel</a>
+          <a href="${frontendUrl}/dashboard" style="background-color:#d97706; color:white; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold; display:inline-block; margin-top:10px;">Ver en BES Panel</a>
         </div>
       `,
     });
 
-    this.logger.log(`Resumen de PDFs fallidos enviado a ${to}. URL Ethereal: ${nodemailer.getTestMessageUrl(info)}`);
+    this.logger.log(
+      `Resumen de PDFs fallidos enviado a ${to}. URL Ethereal: ${nodemailer.getTestMessageUrl(info)}`,
+    );
   }
 }

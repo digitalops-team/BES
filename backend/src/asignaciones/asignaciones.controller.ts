@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { AsignacionesService } from './asignaciones.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -12,8 +21,14 @@ export class AsignacionesController {
 
   // GET /asignaciones/:usuarioId — Ver empresas con flag asignada/no asignada
   @Get(':usuarioId')
-  getEmpresasConAsignacion(@Param('usuarioId') usuarioId: string, @Request() req: any) {
-    return this.asignacionesService.getEmpresasConAsignacion(req.user.id, usuarioId);
+  getEmpresasConAsignacion(
+    @Param('usuarioId') usuarioId: string,
+    @Request() req: any,
+  ) {
+    return this.asignacionesService.getEmpresasConAsignacion(
+      req.user.id,
+      usuarioId,
+    );
   }
 
   // POST /asignaciones — Asignar empresa a usuario
@@ -24,7 +39,10 @@ export class AsignacionesController {
 
   // DELETE /asignaciones/:usuarioId/:empresaId — Revocar asignación
   @Delete(':usuarioId/:empresaId')
-  revocar(@Param('usuarioId') usuarioId: string, @Param('empresaId') empresaId: string) {
+  revocar(
+    @Param('usuarioId') usuarioId: string,
+    @Param('empresaId') empresaId: string,
+  ) {
     return this.asignacionesService.revocar(usuarioId, empresaId);
   }
 }
