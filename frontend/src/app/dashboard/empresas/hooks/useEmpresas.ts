@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
-import { io, Socket } from 'socket.io-client';
+import { getSocket } from '@/lib/socket';
 
 export function useEmpresas() {
   const [empresas, setEmpresas] = useState<any[]>([]);
@@ -30,17 +30,26 @@ export function useEmpresas() {
     fetchEmpresas();
 
     if (user?.id) {
-      const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
-      socket.on(`sync-finished-${user.id}`, (data) => {
+      const socket = getSocket();
+
+      const handleSyncFinished = (data: any) => {
         setSyncingEmpresas(prev => ({ ...prev, [data.empresaId]: false }));
         fetchEmpresas();
-      });
-      socket.on(`sync-error-${user.id}`, (data) => {
+      };
+
+      const handleSyncError = (data: any) => {
         setSyncingEmpresas(prev => ({ ...prev, [data.empresaId]: false }));
         alert(`Error sincronizando: ${data.message}`);
         fetchEmpresas();
-      });
-      return () => { socket.disconnect(); };
+      };
+
+      socket.on(`sync-finished-${user.id}`, handleSyncFinished);
+      socket.on(`sync-error-${user.id}`, handleSyncError);
+
+      return () => {
+        socket.off(`sync-finished-${user.id}`, handleSyncFinished);
+        socket.off(`sync-error-${user.id}`, handleSyncError);
+      };
     }
   }, [isAuthenticated, user?.id, fetchEmpresas]);
 
