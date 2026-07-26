@@ -11,7 +11,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@UseGuards(JwtAuthGuard)
 @Controller('uploads')
 export class UploadsController {
   @Get(':filename')
@@ -21,9 +20,11 @@ export class UploadsController {
     const filePath = path.join(process.cwd(), 'uploads', safeFilename);
 
     if (!fs.existsSync(filePath)) {
-      throw new NotFoundException('Archivo no encontrado');
+      throw new NotFoundException('Archivo PDF no encontrado en el servidor');
     }
 
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
     res.sendFile(filePath);
   }
 }

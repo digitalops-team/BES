@@ -33,6 +33,14 @@ function ArchivoContent() {
     if (isAuthenticated) fetchNotificaciones();
   }, [isAuthenticated, fetchNotificaciones]);
 
+  const getPdfUrl = (ruta: string | null | undefined): string | null => {
+    if (!ruta) return null;
+    const fileName = ruta.split('/uploads/').pop();
+    if (!fileName) return null;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    return `${backendUrl}/uploads/${fileName}`;
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await api.delete(`/notificaciones/${id}`);
@@ -193,7 +201,7 @@ function ArchivoContent() {
                 {/* Contenido */}
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => notif.rutaArchivoPdf && setSelectedPdf(notif.rutaArchivoPdf)}
+                  onClick={() => notif.rutaArchivoPdf && setSelectedPdf(getPdfUrl(notif.rutaArchivoPdf))}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-3">

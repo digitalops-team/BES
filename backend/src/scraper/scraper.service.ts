@@ -596,7 +596,7 @@ export class ScraperService {
                         const filePath = path.join(uploadDir, fileName);
                         fs.writeFileSync(filePath, buffer);
                         const backendUrl =
-                          process.env.BACKEND_URL || 'http://localhost:3000';
+                          process.env.BACKEND_URL || 'http://localhost:4000';
                         finalHref = `${backendUrl}/uploads/${fileName}`;
                         this.logger.log(
                           `🚀 ¡Jaque Mate! Documento físico guardado: ${fileName}`,

@@ -30,7 +30,7 @@ export function useEmpresas() {
     fetchEmpresas();
 
     if (user?.id) {
-      const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+      const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
       socket.on(`sync-finished-${user.id}`, (data) => {
         setSyncingEmpresas(prev => ({ ...prev, [data.empresaId]: false }));
         fetchEmpresas();

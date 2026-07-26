@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
 
@@ -10,14 +10,33 @@ export class EmpresasService {
   ) {}
 
   async create(createEmpresaDto: any, usuarioId: string) {
-    const claveEncriptada = this.encryptionService.encrypt(
-      createEmpresaDto.claveSol,
-    );
+    const ruc = String(createEmpresaDto.ruc || '').trim();
+    const razonSocial = String(createEmpresaDto.razonSocial || '').trim();
+    const usuarioSol = String(createEmpresaDto.usuarioSol || '').trim();
+    const claveSol = String(createEmpresaDto.claveSol || '').trim();
+
+    if (!ruc || !razonSocial || !usuarioSol || !claveSol) {
+      throw new BadRequestException(
+        'Todos los campos (RUC, Razón Social, Usuario SOL y Clave SOL) son obligatorios.',
+      );
+    }
+
+    const existing = await this.prisma.empresa.findFirst({
+      where: { ruc, usuarioId },
+    });
+
+    if (existing) {
+      throw new ConflictException(
+        `La empresa con RUC ${ruc} ya está registrada.`,
+      );
+    }
+
+    const claveEncriptada = this.encryptionService.encrypt(claveSol);
     return this.prisma.empresa.create({
       data: {
-        ruc: createEmpresaDto.ruc,
-        razonSocial: createEmpresaDto.razonSocial,
-        usuarioSol: createEmpresaDto.usuarioSol,
+        ruc,
+        razonSocial,
+        usuarioSol,
         claveSol: claveEncriptada,
         usuarioId: usuarioId,
       },

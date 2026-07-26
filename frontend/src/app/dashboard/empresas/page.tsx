@@ -67,42 +67,78 @@ export default function EmpresasPage() {
     XLSX.writeFile(wb, `BES_Empresas_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const getVal = (row: any, ...keys: string[]) => {
+    if (!row) return '';
+    const rowKeys = Object.keys(row);
+    for (const k of keys) {
+      if (row[k] !== undefined && row[k] !== null) return String(row[k]).trim();
+      const foundKey = rowKeys.find(
+        (rk) => rk.trim().toLowerCase() === k.trim().toLowerCase()
+      );
+      if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+        return String(row[foundKey]).trim();
+      }
+    }
+    return '';
+  };
+
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
       const data = evt.target?.result;
-      const wb = XLSX.read(data, { type: 'binary' });
+      const wb = XLSX.read(data, { type: 'array', raw: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws);
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
       setImportPreview(rows);
       setIsImportModalOpen(true);
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     e.target.value = '';
   };
 
   const handleConfirmImport = async () => {
     setImporting(true);
     let success = 0, errors = 0;
+    const errorDetails: string[] = [];
+
     for (const row of importPreview) {
+      const razonSocial = getVal(row, 'Razón Social', 'Razon Social', 'Empresa', 'Nombre');
+      const ruc = getVal(row, 'RUC', 'Ruc');
+      const usuarioSol = getVal(row, 'Usuario SOL', 'Usuario Sol', 'UsuarioSOL', 'Usuario');
+      const claveSol = getVal(row, 'Clave SOL', 'Clave Sol', 'ClaveSOL', 'Clave');
+
+      if (!ruc || !razonSocial || !usuarioSol || !claveSol) {
+        errors++;
+        errorDetails.push(`Fila (${razonSocial || ruc || 'Sin datos'}): Faltan campos requeridos`);
+        continue;
+      }
+
       try {
         await saveEmpresa(null, {
-          razonSocial: row['Razón Social'] || row['Razon Social'] || '',
-          ruc: String(row['RUC'] || ''),
-          usuarioSol: row['Usuario SOL'] || row['Usuario Sol'] || '',
-          claveSol: String(row['Clave SOL'] || row['Clave Sol'] || ''),
+          razonSocial,
+          ruc,
+          usuarioSol,
+          claveSol,
         });
         success++;
-      } catch {
+      } catch (err: any) {
         errors++;
+        const msg = err.response?.data?.message || err.message || 'Error al guardar';
+        errorDetails.push(`RUC ${ruc}: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
       }
     }
+
     setImporting(false);
     setIsImportModalOpen(false);
     setImportPreview([]);
-    alert(`Importación completada: ${success} exitosas, ${errors} errores.`);
+
+    if (errorDetails.length > 0) {
+      alert(`Importación finalizada.\n\n✅ Exitosas: ${success}\n❌ Errores: ${errors}\n\nDetalles:\n` + errorDetails.slice(0, 8).join('\n'));
+    } else {
+      alert(`✅ Importación completada con éxito: ${success} empresas agregadas.`);
+    }
   };
 
   return (
@@ -232,10 +268,10 @@ export default function EmpresasPage() {
                 <tbody className="divide-y divide-white/5">
                   {importPreview.map((row, idx) => (
                     <tr key={idx} className="text-gray-300">
-                      <td className="py-3 pr-4">{row['Razón Social'] || row['Razon Social'] || '—'}</td>
-                      <td className="py-3 pr-4 font-mono text-xs">{String(row['RUC'] || '—')}</td>
-                      <td className="py-3 pr-4">{row['Usuario SOL'] || row['Usuario Sol'] || '—'}</td>
-                      <td className="py-3 font-mono text-xs text-gray-500">{'•'.repeat(8)}</td>
+                      <td className="py-3 pr-4">{getVal(row, 'Razón Social', 'Razon Social', 'Empresa', 'Nombre') || '—'}</td>
+                      <td className="py-3 pr-4 font-mono text-xs">{getVal(row, 'RUC', 'Ruc') || '—'}</td>
+                      <td className="py-3 pr-4">{getVal(row, 'Usuario SOL', 'Usuario Sol', 'Usuario') || '—'}</td>
+                      <td className="py-3 font-mono text-xs text-gray-500">{getVal(row, 'Clave SOL', 'Clave Sol', 'Clave') ? '•'.repeat(8) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

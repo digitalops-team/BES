@@ -49,9 +49,18 @@ function BandejaContent() {
     }
   };
 
+  const getPdfUrl = (ruta: string | null | undefined): string | null => {
+    if (!ruta) return null;
+    const fileName = ruta.split('/uploads/').pop();
+    if (!fileName) return null;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    return `${backendUrl}/uploads/${fileName}`;
+  };
+
   const handleViewPdf = async (notif: any) => {
     await markAsRead(notif.id);
-    if (notif.rutaArchivoPdf) setSelectedPdf(notif.rutaArchivoPdf);
+    const pdfUrl = getPdfUrl(notif.rutaArchivoPdf);
+    if (pdfUrl) setSelectedPdf(pdfUrl);
   };
 
   const clearInbox = async () => {

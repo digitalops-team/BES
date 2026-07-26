@@ -45,7 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     fetchStats();
 
     // Conectar al WebSocket del backend
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000');
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
 
     socket.on(`sync-finished-${user.id}`, (data) => {
       console.log(`[WS] Sincronización completada para empresa: ${data.empresaId}`);
