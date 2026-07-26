@@ -860,20 +860,30 @@ export class ScraperService {
 
     if (!notif) throw new Error('Notificación no encontrada');
 
-    // Determinar el targetFileId: fileId guardado, o extraído del asunto
-    let targetFileId = notif.fileId;
-    if (!targetFileId || targetFileId === notif.empresa.ruc) {
-      const cleanedAsunto = notif.asunto.replace(/RUC:?\s*\d+/gi, '');
-      const numMatches = cleanedAsunto.match(/\b\d+(?:-\d+)*\b/g);
-      if (numMatches) {
-        for (const rawNum of numMatches) {
-          const digitsOnly = rawNum.replace(/\D/g, '');
-          if (digitsOnly.length >= 8 && digitsOnly.length <= 15 && digitsOnly !== notif.empresa.ruc) {
-            targetFileId = digitsOnly;
-            break;
-          }
+    // PRIORIDAD 1: Extraer el ID del asunto. El asunto contiene el número exacto del documento
+    //   (ej: "Resolución de Conclusión N° 1630070862208") → 1630070862208
+    // PRIORIDAD 2: Si el asunto no tiene número válido, usar el fileId guardado en BD.
+    // IMPORTANTE: El fileId en BD puede ser el ID de la *constancia* que envuelve a la resolución,
+    //   no el ID de la resolución en sí misma. El asunto siempre tiene el número correcto.
+    let targetFileId: string | null = null;
+
+    // Siempre intentar extraer del asunto primero
+    const cleanedAsunto = (notif.asunto || '').replace(/RUC:?\s*\d+/gi, '');
+    const numMatches = cleanedAsunto.match(/\b\d+(?:-\d+)*\b/g);
+    if (numMatches) {
+      for (const rawNum of numMatches) {
+        const digitsOnly = rawNum.replace(/\D/g, '');
+        if (digitsOnly.length >= 9 && digitsOnly.length <= 15 && digitsOnly !== notif.empresa.ruc) {
+          targetFileId = digitsOnly;
+          this.logger.log(`📌 ID extraído del asunto: ${digitsOnly} (fileId en BD era: ${notif.fileId})`);
+          break;
         }
       }
+    }
+
+    // Fallback: usar el fileId de la BD si el asunto no tenía número válido
+    if (!targetFileId) {
+      targetFileId = notif.fileId;
     }
 
     if (!targetFileId || targetFileId === notif.empresa.ruc) {
@@ -954,9 +964,14 @@ export class ScraperService {
       ]);
       await this.handleSunatPopups(page);
 
-      // Navegar al Buzón para inicializar la sesión del visor
+      // ── NAVEGACIÓN AL BUZÓN: idéntica a checkBuzonForEmpresa ──────────────
       await new Promise((r) => setTimeout(r, 2000));
+      this.logger.log(`🌐 Navegando al Buzón Electrónico...`);
+
       try {
+        const closeButton = await page.$('button[aria-label="Close"], .modal-header .close, #btnCerrarAviso');
+        if (closeButton) await closeButton.click();
+
         const buzonButton = await page.evaluateHandle(() =>
           [...document.querySelectorAll('a, button')].find((el) =>
             el.textContent?.includes('Buzón Electrónico'),
@@ -965,55 +980,149 @@ export class ScraperService {
         if (buzonButton && (buzonButton as any).asElement()) {
           await (buzonButton as any).asElement().click();
         } else {
-          await page.click('#aBuzon, .icon-buzon, [title*="Buzón"]').catch(() => null);
+          await page.waitForSelector('#aBuzon, .icon-buzon, [title*="Buzón"]', { timeout: 5000 });
+          await page.click('#aBuzon, .icon-buzon, [title*="Buzón"]');
         }
       } catch {
-        await page.goto('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?pestana=*&agrupacion=*', { waitUntil: 'networkidle2' });
+        await page.goto(
+          'https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm?pestana=*&agrupacion=*',
+          { waitUntil: 'networkidle2' },
+        );
       }
 
-      // Esperar a que cargue el visor del buzón
-      await new Promise((r) => setTimeout(r, 8000));
+      // Esperar a que el Buzón cargue completamente (iframes internos)
+      this.logger.log(`⏳ Esperando carga completa del Buzón (20s)...`);
+      await new Promise((r) => setTimeout(r, 20000));
 
-      const frames = page.frames();
-      const mainFrame = frames.find((f) => f.url().includes('visor') || f.url().includes('master')) || page.mainFrame();
+      // Obtener el frame del visor (igual que en checkBuzonForEmpresa)
+      const framesList = page.frames();
+      this.logger.log(`🔍 Frames activos: ${framesList.map((f) => f.url().substring(0, 70)).join(' | ')}`);
 
-      const sunatUrl = `https://ww1.sunat.gob.pe/ol-ti-itvisornoti/visor/bajarArchivo/${targetFileId}/0/0/${empresa.ruc}`;
+      const visorFrame = framesList.find(
+        (f) => f.url().includes('visor') || f.url().includes('master'),
+      );
+
+      if (!visorFrame) {
+        throw new Error('No se encontró el frame del Buzón. SUNAT puede haber bloqueado la sesión.');
+      }
+
+      this.logger.log(`📡 Frame del visor: ${visorFrame.url().substring(0, 80)}`);
+
+      // ── PASO 1: Hacer click en la fila con el fileId conocido (constancia) ──
+      // El fileId original (1111142175) es la constancia. Al hacer click en ella,
+      // el DOM del visor cargará la página de constancia que contiene el link real al PDF.
+      const constanciaId = notif.fileId ?? ''; // ID de la constancia guardado en BD
+      this.logger.log(`🖱️ Buscando y haciendo click en la fila con fileId: ${constanciaId}...`);
+
+      // Buscar la fila que contiene el fileId de la constancia y hacer click
+      const clicked = await visorFrame.evaluate((fid: string) => {
+        const rows = Array.from(document.querySelectorAll('tr, li, [class*="row"], [class*="item"]'));
+        for (const row of rows) {
+          if (fid && row.innerHTML.includes(fid)) {
+            const link = (row as HTMLElement).querySelector('a, span') as HTMLElement;
+            if (link) { link.click(); return true; }
+            (row as HTMLElement).click();
+            return true;
+          }
+        }
+        return false;
+      }, constanciaId);
+
+      if (clicked) {
+        this.logger.log(`✅ Click en fila exitoso. Esperando que cargue la constancia...`);
+      } else {
+        this.logger.warn(`⚠️ No se encontró la fila con fileId ${constanciaId}. Procediendo con escaneo directo del DOM.`);
+      }
+      await new Promise((r) => setTimeout(r, 4000));
+
+      // ── PASO 2: Extraer el ID real del PDF desde el DOM del visor ──
+      // El DOM de la constancia contiene links bajarArchivo/ con el ID real de la resolución
+      const allBajarIds = await visorFrame.evaluate(() => {
+        const matches = document.body.innerHTML.match(/bajarArchivo\/(\d{8,15})/g) || [];
+        return [...new Set(matches.map((m) => {
+          const match = m.match(/(\d{8,15})/);
+          return match ? match[1] : '';
+        }).filter(Boolean))];
+      });
+
+      this.logger.log(`🔎 IDs bajarArchivo encontrados en DOM: [${allBajarIds.join(', ')}]`);
+
+      // Elegir el ID que NO sea la constancia y NO sea el RUC
+      const realPdfId = allBajarIds.find(
+        (id) => id !== constanciaId && id !== empresa.ruc && id !== targetFileId,
+      ) || allBajarIds.find((id) => id !== empresa.ruc) || constanciaId;
+
+      this.logger.log(`🎯 ID real del PDF a descargar: ${realPdfId}`);
+
+      const sunatUrl = `https://ww1.sunat.gob.pe/ol-ti-itvisornoti/visor/bajarArchivo/${realPdfId}/0/0/${empresa.ruc}`;
+      this.logger.log(`📥 URL de descarga: ${sunatUrl}`);
 
       let pdfBuffer: Buffer | null = null;
+      let resolvedFileId = realPdfId;
+
       for (let attempt = 1; attempt <= 5; attempt++) {
         try {
-          const base64Data = await mainFrame.evaluate(async (url) => {
+          this.logger.log(`🔄 Intento ${attempt}/5 de descarga del PDF...`);
+          const base64Data = await visorFrame.evaluate(async (url) => {
             try {
-              const response = await fetch(url);
-              if (!response.ok) return null;
+              const response = await fetch(url, { credentials: 'include' });
+              if (!response.ok) return `ERR:${response.status}`;
               const blob = await response.blob();
               return new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
                 reader.readAsDataURL(blob);
               });
-            } catch { return null; }
+            } catch (e) { return `ERR:${String(e)}`; }
           }, sunatUrl);
 
-          if (base64Data && base64Data.includes(',')) {
+          if (base64Data && typeof base64Data === 'string' && base64Data.startsWith('ERR:')) {
+            this.logger.warn(`⚠️ Respuesta del fetch en intento ${attempt}: ${base64Data}`);
+          } else if (base64Data && base64Data.includes(',')) {
             const buf = Buffer.from(base64Data.split(',')[1], 'base64');
             if (buf.length > 1000 || buf.toString('utf8', 0, 4) === '%PDF') {
               pdfBuffer = buf;
+              this.logger.log(`✅ PDF obtenido en intento ${attempt}, tamaño: ${buf.length} bytes`);
               break;
+            } else {
+              this.logger.warn(`⚠️ Respuesta recibida pero no es PDF válido (${buf.length} bytes)`);
             }
           }
-        } catch { /* continue */ }
+        } catch (fetchErr) {
+          this.logger.warn(`⚠️ Error en intento ${attempt}: ${fetchErr}`);
+        }
         if (attempt < 5) await new Promise((r) => setTimeout(r, attempt * 1500));
       }
 
       if (pdfBuffer) {
-        fs.writeFileSync(filePath, pdfBuffer);
-        await this.prisma.notificacion.update({
-          where: { id: notificacionId },
-          data: { rutaArchivoPdf: finalHref, estado: 'NO_LEIDO', fileId: targetFileId },
-        });
-        this.logger.log(`✅ PDF recuperado exitosamente: ${fileName}`);
-        return { success: true, rutaArchivoPdf: finalHref };
+        const realFileName = `${resolvedFileId}.pdf`;
+        const realFilePath = path.join(path.join(process.cwd(), 'uploads'), realFileName);
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+        const realHref = `${backendUrl}/uploads/${realFileName}`;
+
+        fs.writeFileSync(realFilePath, pdfBuffer);
+
+        // Actualizar la notificación. Si el fileId ya existe en otra fila (unique constraint),
+        // actualizar solo la ruta y el estado sin cambiar el fileId.
+        try {
+          await this.prisma.notificacion.update({
+            where: { id: notificacionId },
+            data: { rutaArchivoPdf: realHref, estado: 'NO_LEIDO', fileId: resolvedFileId },
+          });
+        } catch (dbErr: any) {
+          if (dbErr?.code === 'P2002') {
+            this.logger.warn(`⚠️ fileId ${resolvedFileId} ya existe en BD. Actualizando solo rutaArchivoPdf y estado...`);
+            await this.prisma.notificacion.update({
+              where: { id: notificacionId },
+              data: { rutaArchivoPdf: realHref, estado: 'NO_LEIDO' },
+            });
+          } else {
+            throw dbErr;
+          }
+        }
+
+        this.logger.log(`✅ PDF recuperado exitosamente: ${realFileName}`);
+        return { success: true, rutaArchivoPdf: realHref };
       } else {
         throw new Error('SUNAT no entregó el PDF tras 5 reintentos. Puede ser un comunicado sin adjunto.');
       }
@@ -1022,3 +1131,4 @@ export class ScraperService {
     }
   }
 }
+
