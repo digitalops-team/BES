@@ -46,13 +46,21 @@ export default function EmpresasPage() {
   };
 
   const handleExport = () => {
-    const data = empresas.map(emp => ({
-      'Razón Social': emp.razonSocial,
-      'RUC': emp.ruc,
-      'Usuario SOL': emp.usuarioSol,
-      'Estado Conexión': emp.estadoConexion,
-      'Total Notificaciones': emp._count?.notificaciones ?? 0,
-    }));
+    const data = empresas.map(emp => {
+      const row: any = {
+        'Razón Social': emp.razonSocial,
+        'RUC': emp.ruc,
+        'Usuario SOL': emp.usuarioSol,
+      };
+
+      if (emp.claveSol) {
+        row['Clave SOL'] = emp.claveSol;
+      }
+
+      row['Estado Conexión'] = emp.estadoConexion;
+      row['Total Notificaciones'] = emp._count?.notificaciones ?? 0;
+      return row;
+    });
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Empresas');

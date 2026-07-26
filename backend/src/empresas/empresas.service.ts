@@ -33,13 +33,14 @@ export class EmpresasService {
     if (userRol === 'SUPER_ADMIN' || userRol === 'ADMIN') {
       const whereClause = userRol === 'SUPER_ADMIN' ? { usuarioId } : {};
 
-      return this.prisma.empresa.findMany({
+      const empresas = await this.prisma.empresa.findMany({
         where: whereClause,
         select: {
           id: true,
           ruc: true,
           razonSocial: true,
           usuarioSol: true,
+          claveSol: true,
           estadoConexion: true,
           estadoSincro: true,
           ultimaSincronizacion: true,
@@ -60,6 +61,19 @@ export class EmpresasService {
           },
         },
         orderBy: { razonSocial: 'asc' },
+      });
+
+      return empresas.map((emp) => {
+        let claveSolDecrypted = '';
+        try {
+          claveSolDecrypted = this.encryptionService.decrypt(emp.claveSol);
+        } catch (e) {
+          claveSolDecrypted = '[Error al desencriptar]';
+        }
+        return {
+          ...emp,
+          claveSol: claveSolDecrypted,
+        };
       });
     }
 
