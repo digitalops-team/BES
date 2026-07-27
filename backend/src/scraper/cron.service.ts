@@ -27,12 +27,19 @@ export class CronService {
         `Se encontraron ${empresas.length} empresas para procesar.`,
       );
 
-      for (const empresa of empresas) {
+      // Delay escalonado: 30 segundos entre cada empresa para no saturar internet
+      const DELAY_ENTRE_EMPRESAS_MS = 30 * 1000; // 30 segundos
+
+      for (let i = 0; i < empresas.length; i++) {
+        const empresa = empresas[i];
+        const delayMs = i * DELAY_ENTRE_EMPRESAS_MS;
+
         await this.scraperQueue.add(
           'scrapeBuzon',
           { empresaId: empresa.id },
           {
             jobId: `daily-${empresa.id}-${new Date().toISOString().split('T')[0]}`,
+            delay: delayMs, // Empresa 0 arranca de inmediato, 1 a los 30s, 2 a los 60s...
             attempts: 3,
             backoff: {
               type: 'exponential',
@@ -40,7 +47,7 @@ export class CronService {
             },
           },
         );
-        this.logger.log(`Tarea encolada para la empresa RUC: ${empresa.ruc}`);
+        this.logger.log(`Tarea encolada para la empresa RUC: ${empresa.ruc} (arranca en ${delayMs / 1000}s)`);
       }
     } catch (error) {
       this.logger.error('Error al encolar tareas diarias:', error);
