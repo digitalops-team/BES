@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, RefreshCw, Edit2, Trash2, Clock, Bell, Power } from 'lucide-react';
+import { Building2, RefreshCw, Edit2, Trash2, Clock, Bell, Power, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface EmpresaTableProps {
@@ -9,6 +9,7 @@ interface EmpresaTableProps {
   onEdit: (empresa: any) => void;
   onDelete: (id: string) => void;
   onToggleActivo?: (empresa: any) => void;
+  onOpenSunat?: (empresa: any) => void;
   userRol?: string;
 }
 
@@ -19,6 +20,7 @@ export const EmpresaTable: React.FC<EmpresaTableProps> = ({
   onEdit,
   onDelete,
   onToggleActivo,
+  onOpenSunat,
   userRol
 }) => {
   const router = useRouter();
@@ -146,6 +148,14 @@ export const EmpresaTable: React.FC<EmpresaTableProps> = ({
                       title={isDeshabilitado ? "Empresa deshabilitada" : "Sincronizar"}
                     >
                       <RefreshCw className={`w-4 h-4 ${syncingEmpresas[emp.id] ? 'animate-spin' : ''}`} />
+                    </button>
+
+                    <button 
+                      onClick={() => onOpenSunat?.(emp)}
+                      className="p-2 bg-white/5 border border-white/10 text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/20 rounded-lg transition-all"
+                      title="Acceso Rápido a SUNAT (Copiar credenciales)"
+                    >
+                      <ExternalLink className="w-4 h-4" />
                     </button>
 
                     {(userRol === 'SUPER_ADMIN' || userRol === 'ADMIN') && (

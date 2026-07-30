@@ -5,6 +5,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useEmpresas } from './hooks/useEmpresas';
 import { EmpresaTable } from './components/EmpresaTable';
 import { EmpresaFormModal } from './components/EmpresaFormModal';
+import { SunatLoginModal } from './components/SunatLoginModal';
 import * as XLSX from 'xlsx';
 
 export default function EmpresasPage() {
@@ -14,7 +15,15 @@ export default function EmpresasPage() {
   const [empresaToDelete, setEmpresaToDelete] = useState<string | null>(null);
   const [empresaToToggle, setEmpresaToToggle] = useState<any | null>(null);
   const [isToggleModalOpen, setIsToggleModalOpen] = useState(false);
+  const [sunatEmpresa, setSunatEmpresa] = useState<any | null>(null);
+  const [isSunatModalOpen, setIsSunatModalOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<any | null>(null);
+
+  const handleOpenSunat = (empresa: any) => {
+    setSunatEmpresa(empresa);
+    setIsSunatModalOpen(true);
+    window.open('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm', '_blank', 'noopener,noreferrer');
+  };
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
@@ -220,6 +229,7 @@ export default function EmpresasPage() {
           onEdit={handleEdit}
           onDelete={(id) => { setEmpresaToDelete(id); setIsDeleteModalOpen(true); }}
           onToggleActivo={(emp) => { setEmpresaToToggle(emp); setIsToggleModalOpen(true); }}
+          onOpenSunat={handleOpenSunat}
           userRol={user?.rol}
         />
       )}
@@ -229,6 +239,12 @@ export default function EmpresasPage() {
         onClose={() => setIsModalOpen(false)}
         onSubmit={saveEmpresa}
         initialData={editingEmpresa}
+      />
+
+      <SunatLoginModal 
+        isOpen={isSunatModalOpen}
+        onClose={() => { setIsSunatModalOpen(false); setSunatEmpresa(null); }}
+        empresa={sunatEmpresa}
       />
 
       <ConfirmModal 
