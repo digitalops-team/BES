@@ -1,30 +1,29 @@
 {
   "manifest_version": 3,
   "name": "BES Auto-Fill SUNAT",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autocompleta el RUC, Usuario SOL y Clave SOL en el portal de la SUNAT desde el sistema BES.",
   "permissions": [
     "storage",
     "activeTab"
   ],
   "host_permissions": [
-    "https://e-menu.sunat.gob.pe/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "https://*.sunat.gob.pe/*",
+    "http://*.sunat.gob.pe/*",
+    "<all_urls>"
   ],
   "content_scripts": [
     {
-      "matches": [
-        "http://localhost/*",
-        "http://127.0.0.1/*"
-      ],
+      "matches": ["<all_urls>"],
       "js": ["content-bes.js"]
     },
     {
       "matches": [
-        "https://e-menu.sunat.gob.pe/*"
+        "https://*.sunat.gob.pe/*",
+        "http://*.sunat.gob.pe/*"
       ],
       "js": ["content-sunat.js"],
+      "all_frames": true,
       "run_at": "document_end"
     }
   ],

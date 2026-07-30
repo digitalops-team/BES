@@ -20,7 +20,7 @@ export default function EmpresasPage() {
   const [editingEmpresa, setEditingEmpresa] = useState<any | null>(null);
 
   const handleOpenSunat = (empresa: any) => {
-    // Transmitir datos a la extensión de navegador BES Auto-Fill si está activa
+    // Transmitir datos a la extensión de navegador BES Auto-Fill
     window.postMessage({
       type: 'BES_FILL_SUNAT',
       data: {
@@ -32,7 +32,11 @@ export default function EmpresasPage() {
 
     setSunatEmpresa(empresa);
     setIsSunatModalOpen(true);
-    window.open('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm', '_blank', 'noopener,noreferrer');
+
+    // Esperar 150ms para asegurar que la extensión guarde en storage antes de abrir la pestaña de SUNAT
+    setTimeout(() => {
+      window.open('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm', '_blank', 'noopener,noreferrer');
+    }, 150);
   };
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
