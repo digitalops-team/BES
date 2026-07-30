@@ -20,6 +20,16 @@ export default function EmpresasPage() {
   const [editingEmpresa, setEditingEmpresa] = useState<any | null>(null);
 
   const handleOpenSunat = (empresa: any) => {
+    // Transmitir datos a la extensión de navegador BES Auto-Fill si está activa
+    window.postMessage({
+      type: 'BES_FILL_SUNAT',
+      data: {
+        ruc: empresa.ruc,
+        usuarioSol: empresa.usuarioSol,
+        claveSol: empresa.claveSol
+      }
+    }, '*');
+
     setSunatEmpresa(empresa);
     setIsSunatModalOpen(true);
     window.open('https://e-menu.sunat.gob.pe/cl-ti-itmenu/MenuInternet.htm', '_blank', 'noopener,noreferrer');
