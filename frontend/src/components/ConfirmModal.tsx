@@ -8,10 +8,42 @@ interface ConfirmModalProps {
   onConfirm: () => void;
   title: string;
   message: string;
+  confirmText?: string;
+  confirmVariant?: 'danger' | 'warning' | 'primary';
 }
 
-export default function ConfirmModal({ isOpen, onClose, onConfirm, title, message }: ConfirmModalProps) {
+export default function ConfirmModal({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  title, 
+  message,
+  confirmText,
+  confirmVariant = 'danger'
+}: ConfirmModalProps) {
   if (!isOpen) return null;
+
+  const isWarning = confirmVariant === 'warning';
+  const isPrimary = confirmVariant === 'primary';
+  const defaultText = confirmText ?? (title.toLowerCase().includes('eliminar') ? 'Sí, Eliminar' : 'Confirmar');
+
+  const iconBg = isWarning
+    ? 'bg-amber-500/10 border-amber-500/20'
+    : isPrimary
+    ? 'bg-blue-500/10 border-blue-500/20'
+    : 'bg-red-500/10 border-red-500/20';
+
+  const iconColor = isWarning
+    ? 'text-amber-500'
+    : isPrimary
+    ? 'text-blue-500'
+    : 'text-red-500';
+
+  const btnBg = isWarning
+    ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+    : isPrimary
+    ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+    : 'bg-red-500 hover:bg-red-600 shadow-red-500/20';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -29,8 +61,8 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
           </button>
 
           {/* Warning Icon */}
-          <div className="mx-auto w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 mb-4">
-            <AlertTriangle className="w-8 h-8 text-red-500" />
+          <div className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center border mb-4 ${iconBg}`}>
+            <AlertTriangle className={`w-8 h-8 ${iconColor}`} />
           </div>
 
           <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
@@ -50,9 +82,9 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
                 onConfirm();
                 onClose();
               }}
-              className="flex-1 px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-semibold shadow-lg shadow-red-500/20 transition-all"
+              className={`flex-1 px-6 py-3 text-white rounded-2xl font-semibold shadow-lg transition-all ${btnBg}`}
             >
-              Sí, Eliminar
+              {defaultText}
             </button>
           </div>
         </div>

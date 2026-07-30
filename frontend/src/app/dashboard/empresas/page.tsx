@@ -12,6 +12,8 @@ export default function EmpresasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [empresaToDelete, setEmpresaToDelete] = useState<string | null>(null);
+  const [empresaToToggle, setEmpresaToToggle] = useState<any | null>(null);
+  const [isToggleModalOpen, setIsToggleModalOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<any | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
@@ -25,6 +27,7 @@ export default function EmpresasPage() {
     syncingAll,
     handleSync,
     handleSyncAll,
+    toggleEmpresaActivo,
     deleteEmpresa,
     saveEmpresa,
     user
@@ -216,6 +219,7 @@ export default function EmpresasPage() {
           onSync={handleSync}
           onEdit={handleEdit}
           onDelete={(id) => { setEmpresaToDelete(id); setIsDeleteModalOpen(true); }}
+          onToggleActivo={(emp) => { setEmpresaToToggle(emp); setIsToggleModalOpen(true); }}
           userRol={user?.rol}
         />
       )}
@@ -241,6 +245,28 @@ export default function EmpresasPage() {
         }}
         title="¿Eliminar Empresa?"
         message="Esta acción es irreversible y detendrá todas las sincronizaciones automáticas del buzón de esta empresa."
+      />
+
+      <ConfirmModal 
+        isOpen={isToggleModalOpen}
+        onClose={() => { setIsToggleModalOpen(false); setEmpresaToToggle(null); }}
+        onConfirm={async () => {
+          if (empresaToToggle) {
+            try {
+              await toggleEmpresaActivo(empresaToToggle.id, empresaToToggle.activo !== false);
+            } catch (error) {
+              alert("Error al cambiar estado de la empresa");
+            }
+          }
+        }}
+        title={empresaToToggle?.activo !== false ? "¿Deshabilitar Empresa?" : "¿Reactivar Empresa?"}
+        message={
+          empresaToToggle?.activo !== false
+            ? `¿Deseas deshabilitar a "${empresaToToggle?.razonSocial}"?\nYa no se incluirá en las sincronizaciones masivas.`
+            : `¿Deseas reactivar a "${empresaToToggle?.razonSocial}"?`
+        }
+        confirmText={empresaToToggle?.activo !== false ? "Sí, Deshabilitar" : "Sí, Reactivar"}
+        confirmVariant={empresaToToggle?.activo !== false ? "warning" : "primary"}
       />
       {/* Modal de Previsualización de Importación */}
       {isImportModalOpen && (

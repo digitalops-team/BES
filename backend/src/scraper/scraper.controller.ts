@@ -49,6 +49,12 @@ export class ScraperController {
       );
     }
 
+    if (empresa.activo === false) {
+      throw new ForbiddenException(
+        'La empresa se encuentra deshabilitada',
+      );
+    }
+
     // ownerUserId = quien recibe el email (SUPER_ADMIN dueño)
     // callerId    = quien recibe el WebSocket (el que hizo clic)
     await this.scraperQueue.add(
@@ -70,14 +76,15 @@ export class ScraperController {
     let empresas: any[] = [];
 
     if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
-      // SUPER_ADMIN y ADMIN sincronizan todas las empresas del sistema
+      // SUPER_ADMIN y ADMIN sincronizan todas las empresas ACTIVAS del sistema
       empresas = await this.prisma.empresa.findMany({
+        where: { activo: true },
         select: { id: true, usuarioId: true },
       });
     } else {
-      // USUARIO_LOCAL: solo las asignadas
+      // USUARIO_LOCAL: solo las asignadas que estén ACTIVAS
       const asignaciones = await this.prisma.empresaAsignacion.findMany({
-        where: { usuarioId: callerId },
+        where: { usuarioId: callerId, empresa: { activo: true } },
         include: { empresa: { select: { id: true, usuarioId: true } } },
       });
       empresas = asignaciones.map((a) => a.empresa);

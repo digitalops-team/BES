@@ -62,6 +62,7 @@ export class EmpresasService {
           claveSol: true,
           estadoConexion: true,
           estadoSincro: true,
+          activo: true,
           ultimaSincronizacion: true,
           createdAt: true,
           _count: {
@@ -113,6 +114,7 @@ export class EmpresasService {
         usuarioSol: true,
         estadoConexion: true,
         estadoSincro: true,
+        activo: true,
         ultimaSincronizacion: true,
         createdAt: true,
         _count: {

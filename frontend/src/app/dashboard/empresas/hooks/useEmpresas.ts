@@ -72,20 +72,33 @@ export function useEmpresas() {
   };
 
   const handleSyncAll = async () => {
-    if (empresas.length === 0) return;
+    const activeEmpresas = empresas.filter(e => e.activo !== false);
+    if (activeEmpresas.length === 0) {
+      alert("No hay empresas activas para sincronizar");
+      return;
+    }
     setSyncingAll(true);
     const newSyncingState = { ...syncingEmpresas };
-    empresas.forEach(emp => { newSyncingState[emp.id] = true; });
+    activeEmpresas.forEach(emp => { newSyncingState[emp.id] = true; });
     setSyncingEmpresas(newSyncingState);
 
     try {
       const res = await api.post('/scraper/sync-all', {});
-      alert(`Se encolaron ${res.data.count} empresas para sincronización.`);
+      alert(`Se encolaron ${res.data.count} empresas activas para sincronización.`);
     } catch (error) {
       alert("Error al iniciar la sincronización masiva");
       setSyncingEmpresas({});
     } finally {
       setSyncingAll(false);
+    }
+  };
+
+  const toggleEmpresaActivo = async (id: string, currentActivo: boolean) => {
+    try {
+      await api.patch(`/empresas/${id}`, { activo: !currentActivo });
+      await fetchEmpresas();
+    } catch (error) {
+      alert("Error al cambiar el estado de la empresa");
     }
   };
 
@@ -110,6 +123,7 @@ export function useEmpresas() {
     syncingAll,
     handleSync,
     handleSyncAll,
+    toggleEmpresaActivo,
     deleteEmpresa,
     saveEmpresa,
     user

@@ -41,6 +41,7 @@ model Empresa {
   claveSol             String
   estadoConexion       EstadoConexion @default(CONECTADO)
   estadoSincro         String         @default("IDLE")
+  activo               Boolean        @default(true)
   ultimaSincronizacion DateTime?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
