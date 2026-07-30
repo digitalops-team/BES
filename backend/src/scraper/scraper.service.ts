@@ -622,9 +622,8 @@ export class ScraperService {
                         );
                       } else {
                         this.logger.warn(
-                          `⚠️ PDF vacío/corrupto para: ${asunto.substring(0, 60)}`,
+                          `⚠️ Intento 1 (escaneo profundo) devolvió buffer inválido para: ${asunto.substring(0, 50)}`,
                         );
-                        pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
                       }
                     }
                   } else {
@@ -697,14 +696,36 @@ export class ScraperService {
                           );
                         } else {
                           this.logger.warn(
-                            `⚠️ PDF vacío/corrupto para: ${asunto.substring(0, 60)}`,
+                            `⚠️ Intento 2 (escaneo alternativo) devolvió buffer inválido para: ${asunto.substring(0, 50)}`,
                           );
-                          pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
                         }
                       }
                     } else {
                       this.logger.warn(
-                        `⚠️ No se encontró ID interno en el DOM para: ${asunto.substring(0, 60)}`,
+                        `⚠️ Intento 2: No se encontró ID alternativo en el DOM para: ${asunto.substring(0, 50)}`,
+                      );
+                    }
+                  }
+
+                  // TERCER ESCANEO DE RESPALDO EN CALIENTE (gendocS01Alias / Form POST)
+                  if (!finalHref) {
+                    this.logger.log(
+                      `🔍 Tercer escaneo: intentando extracción en caliente vía gendocS01Alias / Form POST para: ${asunto.substring(0, 50)}...`,
+                    );
+                    const inFlightResult = await this.extractGendocPdfInFlight(
+                      page,
+                      mainFrame,
+                      asunto,
+                      currentId,
+                      empresa.ruc,
+                      uploadDir,
+                    );
+                    if (inFlightResult) {
+                      finalHref = inFlightResult.finalHref;
+                      if (inFlightResult.fileId) fileId = inFlightResult.fileId;
+                    } else {
+                      this.logger.warn(
+                        `⚠️ PDF vacío/corrupto para: ${asunto.substring(0, 60)}`,
                       );
                       pdfsFallidos.push({ asunto, fecha: dateMatch[1] });
                     }
@@ -852,6 +873,299 @@ export class ScraperService {
     return { fixed, total: notifs.length };
   }
 
+  private async extractGendocPdfInFlight(
+    page: any,
+    visorFrame: any,
+    asunto: string,
+    currentId: string,
+    empresaRuc: string,
+    uploadDir: string,
+  ): Promise<{ finalHref: string; fileId: string } | null> {
+    try {
+      this.logger.log(
+        `🔄 Intentando extracción en caliente de PDF de resolución (gendocS01Alias)...`,
+      );
+      const numResMatch = asunto.match(/(\d{10,15})/);
+      const numResolucion = numResMatch ? numResMatch[1] : '';
+
+      let capturedPdfUrl: string | null = null;
+      const requestListener = (req: any) => {
+        const url: string = req.url();
+        if (
+          url.includes('gendocS01') ||
+          url.includes('fisca') ||
+          (url.includes('sunat') && url.endsWith('.pdf')) ||
+          url.includes('genPDF') ||
+          url.includes('generarDoc')
+        ) {
+          this.logger.log(
+            `🎯 Request interceptada en caliente: ${url.substring(0, 120)}`,
+          );
+          capturedPdfUrl = url;
+          req.continue();
+        } else {
+          req.continue();
+        }
+      };
+
+      await page.setRequestInterception(true);
+      page.on('request', requestListener);
+
+      const blueLinkClicked = await visorFrame.evaluate(
+        (kw: string, fid: string) => {
+          const allLinks = Array.from(document.querySelectorAll('a'));
+
+          if (kw) {
+            const exactLink = allLinks.find((a) =>
+              (a.textContent || '').includes(kw),
+            );
+            if (exactLink) {
+              exactLink.click();
+              return `exact: ${exactLink.textContent?.substring(0, 50)}`;
+            }
+          }
+
+          if (fid) {
+            const fidLink = allLinks.find((a) => a.outerHTML.includes(fid));
+            if (fidLink) {
+              fidLink.click();
+              return `fid: ${fidLink.textContent?.substring(0, 50)}`;
+            }
+          }
+
+          const conclusionLink = allLinks.find((a) => {
+            const text = (a.textContent || '').trim();
+            const isSidebar = a.closest(
+              'nav, #sidebar, .sidebar, #menu, ul.nav',
+            );
+            return (
+              text.includes('Conclusi') &&
+              !text.toLowerCase().includes('ejecuci') &&
+              !isSidebar &&
+              text.length < 100
+            );
+          });
+          if (conclusionLink) {
+            conclusionLink.click();
+            return `conclusion: ${conclusionLink.textContent?.substring(0, 50)}`;
+          }
+
+          return 'not-found';
+        },
+        numResolucion,
+        currentId,
+      );
+
+      this.logger.log(`🔗 Click en link azul (en caliente): ${blueLinkClicked}`);
+      await new Promise((r) => setTimeout(r, 4000));
+
+      page.off('request', requestListener);
+      await page.setRequestInterception(false);
+
+      if (capturedPdfUrl) {
+        const pdfUrlStr = capturedPdfUrl as string;
+        if (
+          pdfUrlStr.includes('accion=genhtml') ||
+          pdfUrlStr.includes('gendocS01')
+        ) {
+          this.logger.log(
+            `🔍 Procesando vista HTML / Form de gendocS01Alias en caliente...`,
+          );
+
+          const datosMatch = pdfUrlStr.match(/datos=(\{[^}]+\})/);
+          let idArchivoFromDatos = currentId;
+          if (datosMatch) {
+            try {
+              const decoded = decodeURIComponent(datosMatch[1]);
+              const parsed = JSON.parse(decoded);
+              idArchivoFromDatos = parsed.id_archivo || currentId;
+            } catch (_) {}
+          }
+
+          const formResult = await visorFrame.evaluate(
+            async (genhtmlUrl: string, idArchivo: string) => {
+              try {
+                const gendocDirectUrl = genhtmlUrl.replace(
+                  'accion=genhtml',
+                  'accion=gendoc',
+                );
+                try {
+                  const resDirect = await fetch(gendocDirectUrl, {
+                    credentials: 'include',
+                  });
+                  if (resDirect.ok) {
+                    const buf = await resDirect.arrayBuffer();
+                    const u8 = new Uint8Array(buf);
+                    if (
+                      u8.length > 500 &&
+                      u8[0] === 0x25 &&
+                      u8[1] === 0x50 &&
+                      u8[2] === 0x44 &&
+                      u8[3] === 0x46
+                    ) {
+                      return {
+                        type: 'pdf',
+                        bytes: Array.from(u8),
+                        url: gendocDirectUrl,
+                      };
+                    }
+                  }
+                } catch (_) {}
+
+                const resHtml = await fetch(genhtmlUrl, {
+                  credentials: 'include',
+                });
+                const textHtml = await resHtml.text();
+
+                const fiscaMatch =
+                  textHtml.match(
+                    /(https?:\/\/[^\s"'<>]*fisca[^\s"'<>]*\.pdf)/i,
+                  ) ||
+                  textHtml.match(/["'](\/[^\s"'<>]*fisca[^\s"'<>]*\.pdf)["']/i);
+                if (fiscaMatch) {
+                  const pdfHref = fiscaMatch[1].startsWith('http')
+                    ? fiscaMatch[1]
+                    : 'https://ww1.sunat.gob.pe' + fiscaMatch[1];
+                  const pdfResp = await fetch(pdfHref, {
+                    credentials: 'include',
+                  });
+                  const arrayBuf = await pdfResp.arrayBuffer();
+                  return {
+                    type: 'pdf',
+                    bytes: Array.from(new Uint8Array(arrayBuf)),
+                    url: pdfHref,
+                  };
+                }
+
+                let codMensajeFromDatos = '';
+                let idArchivoFromDatosParsed = idArchivo;
+                let sistemaFromDatos = '6';
+
+                if (genhtmlUrl.includes('datos=')) {
+                  const m = genhtmlUrl.match(/datos=(\{[^}]+\})/);
+                  if (m) {
+                    try {
+                      const decoded = decodeURIComponent(m[1]);
+                      const obj = JSON.parse(decoded);
+                      if (obj.cod_mensaje)
+                        codMensajeFromDatos = String(obj.cod_mensaje);
+                      if (obj.id_archivo)
+                        idArchivoFromDatosParsed = String(obj.id_archivo);
+                      if (obj.sistema) sistemaFromDatos = String(obj.sistema);
+                    } catch (_) {}
+                  }
+                }
+
+                if (!codMensajeFromDatos) {
+                  const idMsgMatch =
+                    textHtml.match(
+                      /name=["']idMensaje["'][^>]*value=["']([^"']+)["']/i,
+                    ) ||
+                    textHtml.match(
+                      /value=["']([^"']+)["'][^>]*name=["']idMensaje["']/i,
+                    );
+                  if (idMsgMatch) codMensajeFromDatos = idMsgMatch[1];
+                }
+
+                const bajarParams = new URLSearchParams();
+                bajarParams.append('accion', 'archivo');
+                bajarParams.append('idMensaje', codMensajeFromDatos);
+                bajarParams.append('idArchivo', idArchivoFromDatosParsed);
+                bajarParams.append('sistema', sistemaFromDatos);
+
+                const bajarUrl =
+                  'https://ww1.sunat.gob.pe/ol-ti-itvisornoti/visor/bajarArchivo';
+                const bajarResp = await fetch(bajarUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                  },
+                  body: bajarParams.toString(),
+                  credentials: 'include',
+                });
+
+                const bajarBuf = await bajarResp.arrayBuffer();
+                const u8Bajar = new Uint8Array(bajarBuf);
+                if (
+                  u8Bajar.length > 500 &&
+                  u8Bajar[0] === 0x25 &&
+                  u8Bajar[1] === 0x50 &&
+                  u8Bajar[2] === 0x44 &&
+                  u8Bajar[3] === 0x46
+                ) {
+                  return {
+                    type: 'pdf',
+                    bytes: Array.from(u8Bajar),
+                    url: bajarUrl,
+                  };
+                }
+
+                const anexosParams = new URLSearchParams();
+                anexosParams.append('accion', 'archivoConAnexos');
+                anexosParams.append('idMensaje', codMensajeFromDatos);
+                anexosParams.append('idArchivo', idArchivoFromDatosParsed);
+                anexosParams.append('sistema', sistemaFromDatos);
+
+                const anexosResp = await fetch(bajarUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                  },
+                  body: anexosParams.toString(),
+                  credentials: 'include',
+                });
+
+                const anexosBuf = await anexosResp.arrayBuffer();
+                const u8Anexos = new Uint8Array(anexosBuf);
+                if (
+                  u8Anexos.length > 500 &&
+                  u8Anexos[0] === 0x25 &&
+                  u8Anexos[1] === 0x50 &&
+                  u8Anexos[2] === 0x44 &&
+                  u8Anexos[3] === 0x46
+                ) {
+                  return {
+                    type: 'pdf',
+                    bytes: Array.from(u8Anexos),
+                    url: bajarUrl,
+                  };
+                }
+
+                return { type: 'none' };
+              } catch (err: any) {
+                return { type: 'error', text: String(err) };
+              }
+            },
+            pdfUrlStr,
+            idArchivoFromDatos,
+          );
+
+          if (
+            formResult?.type === 'pdf' &&
+            formResult.bytes &&
+            formResult.bytes.length > 500
+          ) {
+            const pdfBuffer = Buffer.from(formResult.bytes);
+            const resId = numResolucion || currentId || idArchivoFromDatos;
+            const fileName = `${resId}_resolucion.pdf`;
+            const filePath = path.join(uploadDir, fileName);
+            fs.writeFileSync(filePath, pdfBuffer);
+            const backendUrl =
+              process.env.BACKEND_URL || 'http://localhost:4000';
+            const pdfRuta = `${backendUrl}/uploads/${fileName}`;
+            this.logger.log(
+              `✅ ¡ÉXITO! PDF de resolución guardado en caliente vía Form POST (${pdfBuffer.length} bytes): ${fileName}`,
+            );
+            return { finalHref: pdfRuta, fileId: resId };
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`⚠️ Excepción en extracción en caliente: ${err.message}`);
+    }
+    return null;
+  }
+
   async retryPdf(notificacionId: string) {
     const notif = await this.prisma.notificacion.findUnique({
       where: { id: notificacionId },
@@ -860,14 +1174,8 @@ export class ScraperService {
 
     if (!notif) throw new Error('Notificación no encontrada');
 
-    // PRIORIDAD 1: Extraer el ID del asunto. El asunto contiene el número exacto del documento
-    //   (ej: "Resolución de Conclusión N° 1630070862208") → 1630070862208
-    // PRIORIDAD 2: Si el asunto no tiene número válido, usar el fileId guardado en BD.
-    // IMPORTANTE: El fileId en BD puede ser el ID de la *constancia* que envuelve a la resolución,
-    //   no el ID de la resolución en sí misma. El asunto siempre tiene el número correcto.
     let targetFileId: string | null = null;
 
-    // Siempre intentar extraer del asunto primero
     const cleanedAsunto = (notif.asunto || '').replace(/RUC:?\s*\d+/gi, '');
     const numMatches = cleanedAsunto.match(/\b\d+(?:-\d+)*\b/g);
     if (numMatches) {
@@ -881,7 +1189,6 @@ export class ScraperService {
       }
     }
 
-    // Fallback: usar el fileId de la BD si el asunto no tenía número válido
     if (!targetFileId) {
       targetFileId = notif.fileId;
     }
@@ -898,7 +1205,6 @@ export class ScraperService {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
     const finalHref = `${backendUrl}/uploads/${fileName}`;
 
-    // Si ya existe en disco y es válido, solo actualizar BD
     if (fs.existsSync(filePath)) {
       const buf = fs.readFileSync(filePath);
       if (buf.length > 1000 || buf.toString('utf8', 0, 4) === '%PDF') {

@@ -152,4 +152,26 @@ export class NotificacionesService {
       where: { empresaId: { in: empresaIds } },
     });
   }
+
+  /** Elimina MULTIPLES notificaciones (solo SUPER_ADMIN y ADMIN) + sus PDFs del disco */
+  async removeMany(ids: string[], usuarioId: string, rol: string) {
+    if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
+      throw new ForbiddenException(
+        'Solo administradores pueden eliminar notificaciones',
+      );
+    }
+
+    if (!ids || ids.length === 0) return { count: 0 };
+
+    const notifs = await this.prisma.notificacion.findMany({
+      where: { id: { in: ids } },
+      select: { rutaArchivoPdf: true },
+    });
+
+    notifs.forEach((n) => this.deletePdfFile(n.rutaArchivoPdf));
+
+    return this.prisma.notificacion.deleteMany({
+      where: { id: { in: ids } },
+    });
+  }
 }

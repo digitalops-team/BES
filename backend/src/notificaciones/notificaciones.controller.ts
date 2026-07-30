@@ -6,6 +6,8 @@ import {
   UseGuards,
   Request,
   Delete,
+  Post,
+  Body,
 } from '@nestjs/common';
 import { NotificacionesService } from './notificaciones.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -43,6 +45,16 @@ export class NotificacionesController {
   @Patch('mark-all-read')
   markAllAsRead(@Request() req: any) {
     return this.notificacionesService.markAllAsRead(req.user.id, req.user.rol);
+  }
+
+  /** Eliminar múltiples notificaciones (SUPER_ADMIN/ADMIN) */
+  @Post('bulk-delete')
+  removeMany(@Body('ids') ids: string[], @Request() req: any) {
+    return this.notificacionesService.removeMany(
+      ids,
+      req.user.id,
+      req.user.rol,
+    );
   }
 
   /** Eliminar una notificación (SUPER_ADMIN/ADMIN) + PDF del disco */
