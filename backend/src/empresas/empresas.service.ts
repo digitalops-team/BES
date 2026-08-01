@@ -1,12 +1,14 @@
 import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class EmpresasService {
   constructor(
     private prisma: PrismaService,
     private encryptionService: EncryptionService,
+    private auditService: AuditService,
   ) {}
 
   async create(createEmpresaDto: any, usuarioId: string) {
@@ -32,7 +34,7 @@ export class EmpresasService {
     }
 
     const claveEncriptada = this.encryptionService.encrypt(claveSol);
-    return this.prisma.empresa.create({
+    const nuevaEmpresa = await this.prisma.empresa.create({
       data: {
         ruc,
         razonSocial,
@@ -41,6 +43,16 @@ export class EmpresasService {
         usuarioId: usuarioId,
       },
     });
+
+    await this.auditService.log({
+      usuarioId,
+      accion: 'CREAR_EMPRESA',
+      entidad: 'Empresa',
+      entidadId: nuevaEmpresa.id,
+      detalles: { ruc, razonSocial, usuarioSol },
+    });
+
+    return nuevaEmpresa;
   }
 
   async findAllByUser(usuarioId: string, userRol: string) {
@@ -83,7 +95,7 @@ export class EmpresasService {
         orderBy: { razonSocial: 'asc' },
       });
 
-      return empresas.map((emp) => {
+      return empresas.map((emp: any) => {
         let claveSolDecrypted = '';
         try {
           claveSolDecrypted = this.encryptionService.decrypt(emp.claveSol);
@@ -102,7 +114,7 @@ export class EmpresasService {
       where: { usuarioId },
       select: { empresaId: true },
     });
-    const empresaIds = asignaciones.map((a) => a.empresaId);
+    const empresaIds = asignaciones.map((a: any) => a.empresaId);
     if (empresaIds.length === 0) return [];
 
     return this.prisma.empresa.findMany({

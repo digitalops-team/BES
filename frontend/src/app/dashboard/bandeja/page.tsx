@@ -7,10 +7,13 @@ import ConfirmModal from '@/components/ConfirmModal';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { PdfViewerDrawer } from '../components/PdfViewerDrawer';
+import { ZipExportButton } from '../components/ZipExportButton';
 
 function BandejaContent() {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedNotifForDrawer, setSelectedNotifForDrawer] = useState<any | null>(null);
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,7 +64,10 @@ function BandejaContent() {
   const handleViewPdf = async (notif: any) => {
     await markAsRead(notif.id);
     const pdfUrl = getPdfUrl(notif.rutaArchivoPdf);
-    if (pdfUrl) setSelectedPdf(pdfUrl);
+    setSelectedNotifForDrawer({
+      ...notif,
+      rutaArchivoPdf: pdfUrl,
+    });
   };
 
   const clearInbox = async () => {
@@ -103,14 +109,23 @@ function BandejaContent() {
           </h2>
           <p className="text-gray-400 text-sm mt-1">Notificaciones SUNAT sin leer. Al abrir el PDF, se marcarán como leídas automáticamente.</p>
         </div>
-        {filteredData.length > 0 && (
+        <div className="flex items-center gap-3">
+          {filteredData.length > 0 && (
+            <ZipExportButton
+              notificaciones={filteredData.map(n => ({
+                id: n.id,
+                asunto: n.asunto,
+                rutaArchivoPdf: getPdfUrl(n.rutaArchivoPdf),
+              }))}
+            />
+          )}
           <button
             onClick={() => router.push('/dashboard/archivo')}
             className="text-sm text-gray-400 hover:text-indigo-400 transition-colors underline underline-offset-2"
           >
             Ver historial leídas →
           </button>
-        )}
+        </div>
       </div>
 
       {/* Search & Date Filters */}
@@ -330,6 +345,12 @@ function BandejaContent() {
           </div>
         </div>
       )}
+
+      <PdfViewerDrawer
+        isOpen={!!selectedNotifForDrawer}
+        onClose={() => setSelectedNotifForDrawer(null)}
+        notificacion={selectedNotifForDrawer}
+      />
 
       <ConfirmModal
         isOpen={isClearModalOpen}

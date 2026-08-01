@@ -25,6 +25,7 @@ model Usuario {
   empresas               Empresa[]
   asignaciones           EmpresaAsignacion[]
   lecturasNotificaciones NotificacionLectura[]
+  auditLogs              AuditLog[]
 }
 
 enum EstadoConexion {
@@ -92,3 +93,18 @@ model EmpresaAsignacion {
 
   @@unique([usuarioId, empresaId])
 }
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  usuarioId String?
+  accion    String   // LOGIN, LOGOUT, CREAR_EMPRESA, ACTUALIZAR_EMPRESA, INICIAR_SCRAPING, DESCARGAR_PDF, LEER_NOTIF, etc.
+  entidad   String?  // Empresa, Notificacion, Usuario, System
+  entidadId String?
+  detalles  String?  // JSON stringified con metadata relevante
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+}
+

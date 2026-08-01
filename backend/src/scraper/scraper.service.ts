@@ -3,6 +3,8 @@ import puppeteer, { Page } from 'puppeteer';
 import { PrismaService } from '../prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { MailService } from '../mail/mail.service';
+import { TelegramService } from '../mail/telegram.service';
+import { WhatsappService } from '../mail/whatsapp.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -16,6 +18,8 @@ export class ScraperService {
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
     private readonly mailService: MailService,
+    private readonly telegramService: TelegramService,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   cleanUtf8(text: string): string {
@@ -786,7 +790,7 @@ export class ScraperService {
           notif.asunto.toLowerCase().includes('orden de pago') ||
           notif.asunto.toLowerCase().includes('esquela')
         ) {
-          // MEJORA: Retry de email con backoff exponencial para evitar ECONNRESET
+          // Dispatch multicanal: Email + Telegram + WhatsApp
           let emailSent = false;
           for (let attempt = 1; attempt <= 3; attempt++) {
             try {
@@ -805,6 +809,19 @@ export class ScraperService {
                 await new Promise((r) => setTimeout(r, attempt * 3000));
             }
           }
+
+          // Alerta Telegram (si está configurado TELEGRAM_CHAT_ID en env)
+          const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+          if (telegramChatId) {
+            await this.telegramService.sendAlert(telegramChatId, empresa.razonSocial, notif.asunto);
+          }
+
+          // Alerta WhatsApp (si está configurado WHATSAPP_PHONE en env)
+          const waPhone = process.env.WHATSAPP_PHONE;
+          if (waPhone) {
+            await this.whatsappService.sendAlert(waPhone, empresa.razonSocial, notif.asunto);
+          }
+
           if (!emailSent)
             this.logger.error(
               `❌ No se pudo enviar email de alerta para: ${notif.asunto}`,

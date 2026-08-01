@@ -7,11 +7,14 @@ import { PrismaService } from '../prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
+import { AuditService } from '../audit/audit.service';
+
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private auditService: AuditService,
   ) {}
 
   async register(data: any) {
@@ -31,6 +34,14 @@ export class AuthService {
         password: hashedPassword,
         nombre: data.nombre,
       },
+    });
+
+    await this.auditService.log({
+      usuarioId: user.id,
+      accion: 'REGISTRO_USUARIO',
+      entidad: 'Usuario',
+      entidadId: user.id,
+      detalles: { email: user.email, nombre: user.nombre },
     });
 
     const payload = {
@@ -62,8 +73,21 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(data.password, user.password);
 
     if (!isPasswordValid) {
+      await this.auditService.log({
+        accion: 'LOGIN_FALLIDO',
+        entidad: 'Usuario',
+        detalles: { email: data.email, motivo: 'Contraseña incorrecta' },
+      });
       throw new UnauthorizedException('Credenciales incorrectas');
     }
+
+    await this.auditService.log({
+      usuarioId: user.id,
+      accion: 'INICIO_SESION',
+      entidad: 'Usuario',
+      entidadId: user.id,
+      detalles: { email: user.email },
+    });
 
     const payload = {
       sub: user.id,

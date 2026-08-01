@@ -6,6 +6,7 @@ import { CronService } from './cron.service';
 import { EncryptionModule } from '../encryption/encryption.module';
 
 import { ScraperController } from './scraper.controller';
+import { QueueController } from './queue.controller';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { ScraperController } from './scraper.controller';
       },
     }),
   ],
-  controllers: [ScraperController],
+  controllers: [ScraperController, QueueController],
   providers: [ScraperService, ScraperProcessor, CronService],
 })
 export class ScraperModule {}

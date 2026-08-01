@@ -13,21 +13,24 @@ export class CronService {
     @InjectQueue('sunat-scraper-queue') private readonly scraperQueue: Queue,
   ) {}
 
-  // Se ejecuta todos los días a las 6:00 AM
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  // Se ejecuta 4 veces al día (6:00 AM, 12:00 PM, 6:00 PM y 10:00 PM hora Perú)
+  @Cron('0 6,12,18,22 * * *')
   async handleDailyScraping() {
-    this.logger.log('Iniciando encolamiento diario de tareas de scraping...');
+    this.logger.log('Iniciando encolamiento programado de sincronización masiva...');
 
     try {
       const empresas = await this.prisma.empresa.findMany({
-        select: { id: true, ruc: true },
+        where: { activo: true },
+        select: { id: true, ruc: true, usuarioId: true },
       });
 
       this.logger.log(
-        `Se encontraron ${empresas.length} empresas para procesar.`,
+        `Se encontraron ${empresas.length} empresas activas para procesar en el barrido programado.`,
       );
 
-      // Delay escalonado: 30 segundos entre cada empresa para no saturar internet
+      if (empresas.length === 0) return;
+
+      // Delay escalonado: 30 segundos entre cada empresa para no saturar la red ni SUNAT
       const DELAY_ENTRE_EMPRESAS_MS = 30 * 1000; // 30 segundos
 
       for (let i = 0; i < empresas.length; i++) {
@@ -35,11 +38,14 @@ export class CronService {
         const delayMs = i * DELAY_ENTRE_EMPRESAS_MS;
 
         await this.scraperQueue.add(
-          'scrapeBuzon',
-          { empresaId: empresa.id },
+          'scrape-sunat',
           {
-            jobId: `daily-${empresa.id}-${new Date().toISOString().split('T')[0]}`,
-            delay: delayMs, // Empresa 0 arranca de inmediato, 1 a los 30s, 2 a los 60s...
+            empresaId: empresa.id,
+            usuarioId: empresa.usuarioId,
+          },
+          {
+            jobId: `scheduled-${empresa.id}-${Date.now()}`,
+            delay: delayMs, // Escalonado: 0s, 30s, 60s...
             attempts: 3,
             backoff: {
               type: 'exponential',
@@ -47,10 +53,10 @@ export class CronService {
             },
           },
         );
-        this.logger.log(`Tarea encolada para la empresa RUC: ${empresa.ruc} (arranca en ${delayMs / 1000}s)`);
+        this.logger.log(`Tarea programada encolada para RUC: ${empresa.ruc} (inicia en ${delayMs / 1000}s)`);
       }
     } catch (error) {
-      this.logger.error('Error al encolar tareas diarias:', error);
+      this.logger.error('Error al encolar tareas programadas:', error);
     }
   }
 }

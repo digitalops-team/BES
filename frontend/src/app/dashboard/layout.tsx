@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import api from '@/lib/api';
-import { Building2, Bell, LogOut, Settings, Shield, Archive, Mail, TrendingUp, Menu, X } from 'lucide-react';
+import { Building2, Bell, LogOut, Settings, Shield, ShieldCheck, Archive, Mail, TrendingUp, Menu, X } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -159,18 +159,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           {(user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN') && (
-            <Link
-              href="/dashboard/admin"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${
-                isActive('/dashboard/admin')
-                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/10'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Shield className="w-5 h-5" />
-              Administración
-            </Link>
+            <>
+              <Link
+                href="/dashboard/admin"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${
+                  pathname === '/dashboard/admin'
+                    ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/10'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Shield className="w-5 h-5" />
+                Administración
+              </Link>
+
+              <Link
+                href="/dashboard/admin/auditoria"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`flex items-center gap-4 px-4 py-3.5 rounded-xl font-semibold transition-colors ${
+                  isActive('/dashboard/admin/auditoria')
+                    ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/10'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <ShieldCheck className="w-5 h-5" />
+                Auditoría
+              </Link>
+            </>
           )}
 
           <Link

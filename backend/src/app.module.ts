@@ -15,9 +15,11 @@ import { UsuariosModule } from './usuarios/usuarios.module';
 import { AsignacionesModule } from './asignaciones/asignaciones.module';
 import { EstadisticasModule } from './estadisticas/estadisticas.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
+    AuditModule,
     UploadsModule,
     ScheduleModule.forRoot(),
     PrismaModule,
