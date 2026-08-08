@@ -44,15 +44,25 @@ export const UserList: React.FC<UserListProps> = ({
           </div>
         ) : usuarios.map(u => {
           const empresaCount = getEmpresaCount(u.id);
+          const fullName = u.nombres && u.apellidos ? `${u.nombres} ${u.apellidos}` : (u.nombre || 'Usuario');
+          const initial = fullName.charAt(0).toUpperCase();
+
           return (
             <div key={u.id} className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-600/30 to-purple-600/30 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm">
-                  {u.nombre.charAt(0).toUpperCase()}
+                  {initial}
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-sm">{u.nombre}</p>
-                  <p className="text-gray-500 text-xs">{u.email}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-white font-semibold text-sm">{fullName}</p>
+                    {u.dni && (
+                      <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded">
+                        DNI: {u.dni}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-500 text-xs font-mono">{u.email}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

@@ -17,8 +17,11 @@ model Usuario {
   id        String    @id @default(uuid())
   email     String    @unique
   password  String
-  nombre    String
+  nombres   String
+  apellidos String
+  dni       String    @unique
   rol       Role      @default(USUARIO_LOCAL)
+  telegramChatId String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   
@@ -55,18 +58,20 @@ model Empresa {
 }
 
 model Notificacion {
-  id              String   @id @default(uuid())
-  empresaId       String
-  fileId          String?  @unique
-  fechaMensaje    DateTime
-  asunto          String
-  tipo            String   @default("NOTIFICACION")
-  rutaArchivoPdf  String?
-  estado          String   @default("NO_LEIDO")
-  createdAt       DateTime @default(now())
+  id                 String   @id @default(uuid())
+  empresaId          String
+  fileId             String?  @unique
+  fechaMensaje       DateTime
+  asunto             String
+  tipo               String   @default("NOTIFICACION")
+  rutaArchivoPdf     String?
+  estado             String   @default("NO_LEIDO")
+  montoExigible      String?
+  expedienteCoactivo String?
+  createdAt          DateTime @default(now())
   
-  empresa         Empresa               @relation(fields: [empresaId], references: [id])
-  lecturas        NotificacionLectura[]
+  empresa            Empresa               @relation(fields: [empresaId], references: [id])
+  lecturas           NotificacionLectura[]
 }
 
 /// Tabla de lecturas por usuario — cada fila = "este usuario leyó esta notificación"

@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, MailOpen, Clock, FileText, AlertTriangle, Archive, Trash2, CheckSquare, Square } from 'lucide-react';
+import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, MailOpen, Clock, FileText, AlertTriangle, Archive, Trash2, CheckSquare, Square, CircleDollarSign } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import ConfirmModal from '@/components/ConfirmModal';
+import { PdfViewerDrawer } from '../components/PdfViewerDrawer';
 
 function ArchivoContent() {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
+  const [selectedNotificacionForPdf, setSelectedNotificacionForPdf] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -293,14 +294,29 @@ function ArchivoContent() {
                   {/* Contenido */}
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => notif.rutaArchivoPdf && setSelectedPdf(getPdfUrl(notif.rutaArchivoPdf))}
+                    onClick={() => {
+                      setSelectedNotificacionForPdf({
+                        ...notif,
+                        rutaArchivoPdf: getPdfUrl(notif.rutaArchivoPdf),
+                      });
+                    }}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5 flex-wrap">
                         <span className="font-semibold text-gray-300">{notif.empresa.razonSocial}</span>
                         <span className="text-xs font-mono bg-white/5 px-2 py-0.5 rounded text-gray-500 border border-white/5">
                           RUC: {notif.empresa.ruc}
                         </span>
+                        {notif.montoExigible && (
+                          <span className="text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
+                            <CircleDollarSign className="w-3.5 h-3.5" /> Deuda Exigible: {notif.montoExigible}
+                          </span>
+                        )}
+                        {notif.expedienteCoactivo && (
+                          <span className="text-xs font-mono text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <FileText className="w-3 h-3 text-amber-400" /> Exp: {notif.expedienteCoactivo}
+                          </span>
+                        )}
                         {notif.estado === 'SIN_PDF' && (
                           <span className="text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-md">
                             SIN PDF
@@ -343,32 +359,12 @@ function ArchivoContent() {
         </div>
       )}
 
-      {/* PDF Viewer */}
-      {selectedPdf && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="bg-[#111827] border border-white/10 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-[#1f2937]/50">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                  <FileIcon className="w-4 h-4 text-blue-400" />
-                </div>
-                <h3 className="font-bold text-white">Visor de Resolución SUNAT</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <a href={selectedPdf} target="_blank" rel="noreferrer" className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors">
-                  <ExternalIcon className="w-5 h-5" />
-                </a>
-                <button onClick={() => setSelectedPdf(null)} className="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-xl transition-colors">
-                  <XIcon className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 bg-gray-900 p-2">
-              <iframe src={selectedPdf} className="w-full h-full rounded-xl border border-white/5" title="Visor PDF" />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Visor de PDF Centrado (Igual que en Bandeja de Entrada) */}
+      <PdfViewerDrawer
+        isOpen={!!selectedNotificacionForPdf}
+        onClose={() => setSelectedNotificacionForPdf(null)}
+        notificacion={selectedNotificacionForPdf}
+      />
 
       {/* Modal Confirmar Eliminación Individual */}
       <ConfirmModal

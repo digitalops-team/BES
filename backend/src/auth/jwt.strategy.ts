@@ -7,7 +7,6 @@ import { Request } from 'express';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
     super({
-      // Extrae el JWT desde la cookie httpOnly O desde el header Authorization Bearer
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) => req?.cookies?.['auth_token'] ?? null,
         ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -18,11 +17,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    const fullName = payload.nombres && payload.apellidos 
+      ? `${payload.nombres} ${payload.apellidos}`.trim() 
+      : payload.nombre || '';
+
     return {
       id: payload.sub,
       email: payload.email,
-      nombre: payload.nombre,
+      nombres: payload.nombres,
+      apellidos: payload.apellidos,
+      nombre: fullName,
+      dni: payload.dni,
       rol: payload.rol,
+      telegramChatId: payload.telegramChatId,
     };
   }
 }

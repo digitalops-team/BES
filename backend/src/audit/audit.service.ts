@@ -96,7 +96,9 @@ export class AuditService {
           usuario: {
             select: {
               id: true,
-              nombre: true,
+              nombres: true,
+              apellidos: true,
+              dni: true,
               email: true,
               rol: true,
             },

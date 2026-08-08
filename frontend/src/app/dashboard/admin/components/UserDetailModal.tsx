@@ -45,11 +45,13 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({ isOpen, userId
         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600/30 to-purple-600/30 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-black text-xl">
-              {loading ? '...' : user?.nombre?.charAt(0).toUpperCase()}
+              {loading ? '...' : (user?.nombres || user?.nombre || 'U').charAt(0).toUpperCase()}
             </div>
             <div>
-              <h3 className="text-xl font-black text-white">{loading ? 'Cargando...' : user?.nombre}</h3>
-              <p className="text-sm text-gray-400">{user?.email}</p>
+              <h3 className="text-xl font-black text-white">
+                {loading ? 'Cargando...' : user?.nombres ? `${user.nombres} ${user.apellidos}` : user?.nombre}
+              </h3>
+              <p className="text-sm text-gray-400 font-mono">{user?.email}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
@@ -67,6 +69,13 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({ isOpen, userId
             <div className="p-6 grid grid-cols-2 gap-4 border-b border-white/5">
               <div className="bg-[#1f2937]/50 rounded-2xl p-4 border border-white/5">
                 <div className="flex items-center gap-2 text-gray-400 text-xs font-semibold mb-2">
+                  <User className="w-3.5 h-3.5" /> DNI del Usuario
+                </div>
+                <p className="text-white text-base font-bold font-mono">{user.dni || 'Sin DNI'}</p>
+              </div>
+
+              <div className="bg-[#1f2937]/50 rounded-2xl p-4 border border-white/5">
+                <div className="flex items-center gap-2 text-gray-400 text-xs font-semibold mb-2">
                   <Shield className="w-3.5 h-3.5" /> Rol del Sistema
                 </div>
                 <span className={`text-sm font-bold px-3 py-1 rounded-full border ${rolColor[user.rol as keyof typeof rolColor] || 'text-gray-400 bg-white/5 border-white/10'}`}>
@@ -76,18 +85,9 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({ isOpen, userId
 
               <div className="bg-[#1f2937]/50 rounded-2xl p-4 border border-white/5">
                 <div className="flex items-center gap-2 text-gray-400 text-xs font-semibold mb-2">
-                  <Calendar className="w-3.5 h-3.5" /> Miembro desde
+                  <Mail className="w-3.5 h-3.5" /> Correo asignado
                 </div>
-                <p className="text-white text-sm font-semibold">
-                  {new Date(user.createdAt).toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })}
-                </p>
-              </div>
-
-              <div className="bg-[#1f2937]/50 rounded-2xl p-4 border border-white/5">
-                <div className="flex items-center gap-2 text-gray-400 text-xs font-semibold mb-2">
-                  <Mail className="w-3.5 h-3.5" /> Correo electrónico
-                </div>
-                <p className="text-white text-sm font-semibold truncate">{user.email}</p>
+                <p className="text-white text-sm font-semibold font-mono truncate">{user.email}</p>
               </div>
 
               <div className="bg-[#1f2937]/50 rounded-2xl p-4 border border-white/5">
@@ -98,6 +98,22 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({ isOpen, userId
                   {user.asignaciones?.length ?? 0}
                   <span className="text-gray-500 text-xs font-normal ml-1">asignadas</span>
                 </p>
+              </div>
+
+              <div className="col-span-2 bg-[#1f2937]/50 rounded-2xl p-4 border border-white/5 flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-xs font-semibold">Telegram Chat ID (Alertas)</p>
+                  <p className="text-white text-sm font-mono font-bold mt-0.5">
+                    {user.telegramChatId ? user.telegramChatId : <span className="text-gray-500 font-normal italic">No configurado</span>}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                  user.telegramChatId
+                    ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+                    : 'text-gray-500 bg-white/5 border-white/10'
+                }`}>
+                  {user.telegramChatId ? 'ALERTAS ACTIVAS' : 'SIN TELEGRAM'}
+                </span>
               </div>
             </div>
 

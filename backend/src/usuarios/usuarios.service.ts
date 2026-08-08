@@ -7,6 +7,24 @@ import {
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
 
+export function generateAutoEmail(nombres: string, apellidos: string, dni: string): string {
+  const cleanStr = (str: string) =>
+    str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toLowerCase();
+
+  const firstName = nombres.trim().split(/\s+/)[0] || '';
+  const firstSurname = apellidos.trim().split(/\s+/)[0] || '';
+  const cleanDni = dni.trim().replace(/\D/g, '');
+
+  const initFirstName = cleanStr(firstName).charAt(0);
+  const initSurname = cleanStr(firstSurname).charAt(0);
+
+  return `${initFirstName}${initSurname}${cleanDni}@bes.com`;
+}
+
 @Injectable()
 export class UsuariosService {
   constructor(private prisma: PrismaService) {}
@@ -14,16 +32,19 @@ export class UsuariosService {
   async findAll(callerRol: string) {
     const where =
       callerRol === 'SUPER_ADMIN'
-        ? {} // SUPER_ADMIN ve todos excepto él mismo (se filtra en frontend)
-        : { rol: { not: 'SUPER_ADMIN' as any } }; // ADMIN no ve al SUPER_ADMIN
+        ? {}
+        : { rol: { not: 'SUPER_ADMIN' as any } };
 
     return this.prisma.usuario.findMany({
       where,
       select: {
         id: true,
         email: true,
-        nombre: true,
+        nombres: true,
+        apellidos: true,
+        dni: true,
         rol: true,
+        telegramChatId: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
@@ -36,8 +57,11 @@ export class UsuariosService {
       select: {
         id: true,
         email: true,
-        nombre: true,
+        nombres: true,
+        apellidos: true,
+        dni: true,
         rol: true,
+        telegramChatId: true,
         createdAt: true,
         asignaciones: {
           include: {
@@ -60,36 +84,55 @@ export class UsuariosService {
   }
 
   async create(data: {
-    email: string;
+    nombres: string;
+    apellidos: string;
+    dni: string;
     password: string;
-    nombre: string;
     rol: string;
+    telegramChatId?: string;
   }) {
-    // Nadie (ni ADMIN) puede crear un SUPER_ADMIN
     if (data.rol === 'SUPER_ADMIN') {
       throw new ForbiddenException(
         'No se puede crear un usuario con rol Super Admin',
       );
     }
 
-    const exists = await this.prisma.usuario.findUnique({
-      where: { email: data.email },
+    const cleanDni = data.dni.trim();
+    const dniExists = await this.prisma.usuario.findUnique({
+      where: { dni: cleanDni },
     });
-    if (exists) throw new ConflictException('El correo ya está registrado');
+    if (dniExists) {
+      throw new ConflictException('El DNI ingresado ya pertenece a otro usuario');
+    }
+
+    const email = generateAutoEmail(data.nombres, data.apellidos, cleanDni);
+
+    const emailExists = await this.prisma.usuario.findUnique({
+      where: { email },
+    });
+    if (emailExists) {
+      throw new ConflictException(`El correo autogenerado ${email} ya está registrado`);
+    }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
     return this.prisma.usuario.create({
       data: {
-        email: data.email,
+        nombres: data.nombres.trim(),
+        apellidos: data.apellidos.trim(),
+        dni: cleanDni,
+        email,
         password: hashedPassword,
-        nombre: data.nombre,
         rol: data.rol as any,
+        telegramChatId: data.telegramChatId ? data.telegramChatId.trim() : null,
       },
       select: {
         id: true,
         email: true,
-        nombre: true,
+        nombres: true,
+        apellidos: true,
+        dni: true,
         rol: true,
+        telegramChatId: true,
         createdAt: true,
       },
     });
@@ -97,19 +140,55 @@ export class UsuariosService {
 
   async update(
     id: string,
-    data: { nombre?: string; email?: string; password?: string; rol?: string },
+    data: {
+      nombres?: string;
+      apellidos?: string;
+      dni?: string;
+      password?: string;
+      rol?: string;
+      telegramChatId?: string;
+    },
   ) {
+    const user = await this.prisma.usuario.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
     const updateData: any = {};
-    if (data.nombre) updateData.nombre = data.nombre;
-    if (data.email) updateData.email = data.email;
-    if (data.rol) updateData.rol = data.rol;
-    if (data.password)
+    if (data.nombres !== undefined) updateData.nombres = data.nombres.trim();
+    if (data.apellidos !== undefined) updateData.apellidos = data.apellidos.trim();
+    if (data.dni !== undefined) updateData.dni = data.dni.trim();
+    if (data.rol !== undefined) updateData.rol = data.rol;
+    if (data.telegramChatId !== undefined)
+      updateData.telegramChatId = data.telegramChatId ? data.telegramChatId.trim() : null;
+
+    if (data.password && data.password.trim()) {
       updateData.password = await bcrypt.hash(data.password, 10);
+    }
+
+    // Regenerar correo si cambiaron los nombres, apellidos o DNI
+    const finalNombres = updateData.nombres || user.nombres;
+    const finalApellidos = updateData.apellidos || user.apellidos;
+    const finalDni = updateData.dni || user.dni;
+
+    if (
+      updateData.nombres ||
+      updateData.apellidos ||
+      updateData.dni
+    ) {
+      updateData.email = generateAutoEmail(finalNombres, finalApellidos, finalDni);
+    }
 
     return this.prisma.usuario.update({
       where: { id },
       data: updateData,
-      select: { id: true, email: true, nombre: true, rol: true },
+      select: {
+        id: true,
+        email: true,
+        nombres: true,
+        apellidos: true,
+        dni: true,
+        rol: true,
+        telegramChatId: true,
+      },
     });
   }
 

@@ -19,15 +19,13 @@ import { Roles } from '../auth/roles.decorator';
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
-  // Actualizar perfil del usuario logueado (cualquier rol)
+  // Actualizar perfil del usuario logueado (Únicamente la contraseña)
   @Patch('profile/me')
   updateMe(
     @Request() req: any,
-    @Body() body: { nombre?: string; email?: string; password?: string },
+    @Body() body: { password?: string },
   ) {
     const cleanData = {
-      nombre: body.nombre,
-      email: body.email,
       password: body.password,
     };
     return this.usuariosService.update(req.user.id, cleanData);
@@ -46,10 +44,12 @@ export class UsuariosController {
   create(
     @Body()
     body: {
-      email: string;
+      nombres: string;
+      apellidos: string;
+      dni: string;
       password: string;
-      nombre: string;
       rol: string;
+      telegramChatId?: string;
     },
   ) {
     return this.usuariosService.create(body);

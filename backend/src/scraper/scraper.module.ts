@@ -4,7 +4,7 @@ import { ScraperProcessor } from './scraper.processor';
 import { BullModule } from '@nestjs/bullmq';
 import { CronService } from './cron.service';
 import { EncryptionModule } from '../encryption/encryption.module';
-
+import { PdfParserService } from './pdf-parser.service';
 import { ScraperController } from './scraper.controller';
 import { QueueController } from './queue.controller';
 
@@ -29,6 +29,7 @@ import { QueueController } from './queue.controller';
     }),
   ],
   controllers: [ScraperController, QueueController],
-  providers: [ScraperService, ScraperProcessor, CronService],
+  providers: [ScraperService, ScraperProcessor, CronService, PdfParserService],
+  exports: [ScraperService, PdfParserService],
 })
 export class ScraperModule {}

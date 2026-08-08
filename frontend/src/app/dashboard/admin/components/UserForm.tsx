@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, UserPlus } from 'lucide-react';
+import { X, UserPlus, Mail } from 'lucide-react';
 
 interface UserFormProps {
   isOpen: boolean;
@@ -7,19 +7,42 @@ interface UserFormProps {
   onCancel: () => void;
 }
 
-const EMPTY_USER = { nombre: '', email: '', password: '', rol: 'USUARIO_LOCAL' };
+const EMPTY_USER = { nombres: '', apellidos: '', dni: '', password: '', rol: 'USUARIO_LOCAL', telegramChatId: '' };
 
 export const UserForm: React.FC<UserFormProps> = ({ isOpen, onSubmit, onCancel }) => {
   const [newUser, setNewUser] = useState(EMPTY_USER);
   const [loading, setLoading] = useState(false);
 
+  const getAutoEmailPreview = () => {
+    const cleanStr = (str: string) =>
+      str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toLowerCase();
+
+    const firstName = newUser.nombres.trim().split(/\s+/)[0] || '';
+    const firstSurname = newUser.apellidos.trim().split(/\s+/)[0] || '';
+    const cleanDni = newUser.dni.trim().replace(/\D/g, '');
+
+    const initFirstName = cleanStr(firstName).charAt(0);
+    const initSurname = cleanStr(firstSurname).charAt(0);
+
+    if (!initFirstName && !initSurname && !cleanDni) return 'Se autogenerará al escribir...';
+    return `${initFirstName}${initSurname}${cleanDni}@bes.com`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (newUser.dni.trim().length !== 8) {
+      alert('El DNI debe contener exactamente 8 dígitos.');
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit(newUser);
-      setNewUser(EMPTY_USER); // ✅ Limpiar formulario
-      onCancel();             // ✅ Cerrar modal
+      setNewUser(EMPTY_USER);
+      onCancel();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al crear usuario');
     } finally {
@@ -36,10 +59,8 @@ export const UserForm: React.FC<UserFormProps> = ({ isOpen, onSubmit, onCancel }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCancel} />
 
-      {/* Modal */}
       <div className="relative w-full max-w-lg bg-[#111827] rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-indigo-500/5">
@@ -49,7 +70,7 @@ export const UserForm: React.FC<UserFormProps> = ({ isOpen, onSubmit, onCancel }
             </div>
             <div>
               <h3 className="text-lg font-bold text-white">Crear Nuevo Usuario</h3>
-              <p className="text-xs text-gray-400">El usuario podrá acceder al sistema inmediatamente.</p>
+              <p className="text-xs text-gray-400">Ingrese datos del usuario. Su correo se autogenerará con su DNI.</p>
             </div>
           </div>
           <button onClick={handleCancel} className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors">
@@ -60,26 +81,38 @@ export const UserForm: React.FC<UserFormProps> = ({ isOpen, onSubmit, onCancel }
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Nombre Completo</label>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Nombres</label>
             <input
               required
-              value={newUser.nombre}
-              onChange={e => setNewUser({...newUser, nombre: e.target.value})}
+              value={newUser.nombres}
+              onChange={e => setNewUser({...newUser, nombres: e.target.value})}
               className="w-full bg-[#1f2937] border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition-all"
-              placeholder="Juan Pérez"
+              placeholder="Juan Carlos"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Email</label>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Apellidos</label>
             <input
               required
-              type="email"
-              value={newUser.email}
-              onChange={e => setNewUser({...newUser, email: e.target.value})}
+              value={newUser.apellidos}
+              onChange={e => setNewUser({...newUser, apellidos: e.target.value})}
               className="w-full bg-[#1f2937] border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition-all"
-              placeholder="juan@estudio.com"
+              placeholder="Pérez Gómez"
             />
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">DNI (8 dígitos)</label>
+            <input
+              required
+              maxLength={8}
+              value={newUser.dni}
+              onChange={e => setNewUser({...newUser, dni: e.target.value.replace(/\D/g, '')})}
+              className="w-full bg-[#1f2937] border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition-all font-mono"
+              placeholder="74589632"
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-gray-400 mb-1.5">Contraseña</label>
             <input
@@ -91,6 +124,15 @@ export const UserForm: React.FC<UserFormProps> = ({ isOpen, onSubmit, onCancel }
               placeholder="••••••••"
             />
           </div>
+
+          <div className="col-span-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs text-gray-400">Correo asignado:</span>
+            </div>
+            <span className="text-xs font-bold text-indigo-300 font-mono">{getAutoEmailPreview()}</span>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-gray-400 mb-1.5">Rol</label>
             <select
@@ -101,6 +143,16 @@ export const UserForm: React.FC<UserFormProps> = ({ isOpen, onSubmit, onCancel }
               <option value="USUARIO_LOCAL">Usuario</option>
               <option value="ADMIN">Admin</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Telegram Chat ID (Opcional)</label>
+            <input
+              value={newUser.telegramChatId}
+              onChange={e => setNewUser({...newUser, telegramChatId: e.target.value})}
+              className="w-full bg-[#1f2937] border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm transition-all"
+              placeholder="Ej: 987654321"
+            />
           </div>
 
           <div className="col-span-2 flex gap-3 justify-end pt-2">
@@ -124,4 +176,3 @@ export const UserForm: React.FC<UserFormProps> = ({ isOpen, onSubmit, onCancel }
     </div>
   );
 };
-

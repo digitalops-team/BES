@@ -5,6 +5,7 @@ import { EncryptionService } from '../encryption/encryption.service';
 import { MailService } from '../mail/mail.service';
 import { TelegramService } from '../mail/telegram.service';
 import { WhatsappService } from '../mail/whatsapp.service';
+import { PdfParserService } from './pdf-parser.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -20,6 +21,7 @@ export class ScraperService {
     private readonly mailService: MailService,
     private readonly telegramService: TelegramService,
     private readonly whatsappService: WhatsappService,
+    private readonly pdfParserService: PdfParserService,
   ) {}
 
   cleanUtf8(text: string): string {
@@ -810,11 +812,8 @@ export class ScraperService {
             }
           }
 
-          // Alerta Telegram (si está configurado TELEGRAM_CHAT_ID en env)
-          const telegramChatId = process.env.TELEGRAM_CHAT_ID;
-          if (telegramChatId) {
-            await this.telegramService.sendAlert(telegramChatId, empresa.razonSocial, notif.asunto);
-          }
+          // Alerta Telegram (enviada a todos los usuarios asignados a la empresa)
+          await this.telegramService.sendAlertToEmpresa(empresa.id, empresa.razonSocial, notif.asunto);
 
           // Alerta WhatsApp (si está configurado WHATSAPP_PHONE en env)
           const waPhone = process.env.WHATSAPP_PHONE;
@@ -1225,9 +1224,16 @@ export class ScraperService {
     if (fs.existsSync(filePath)) {
       const buf = fs.readFileSync(filePath);
       if (buf.length > 1000 || buf.toString('utf8', 0, 4) === '%PDF') {
+        const extracted = await this.pdfParserService.parsePdfBuffer(buf);
         await this.prisma.notificacion.update({
           where: { id: notificacionId },
-          data: { rutaArchivoPdf: finalHref, estado: 'NO_LEIDO', fileId: targetFileId },
+          data: {
+            rutaArchivoPdf: finalHref,
+            estado: 'NO_LEIDO',
+            fileId: targetFileId,
+            montoExigible: extracted.montoExigible,
+            expedienteCoactivo: extracted.expedienteCoactivo,
+          },
         });
         return { success: true, rutaArchivoPdf: finalHref };
       }

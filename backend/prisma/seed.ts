@@ -4,8 +4,8 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminEmail = 'admin@bes.com'; // Puedes cambiar esto
-  const adminPassword = 'admin_password_2026'; // ¡Cambia esto después de entrar!
+  const adminEmail = 'admin@bes.com';
+  const adminPassword = 'admin_password_2026';
 
   const existingAdmin = await prisma.usuario.findUnique({
     where: { email: adminEmail },
@@ -16,7 +16,9 @@ async function main() {
     await prisma.usuario.create({
       data: {
         email: adminEmail,
-        nombre: 'Super Admin BES',
+        nombres: 'Super Admin',
+        apellidos: 'BES',
+        dni: '00000000',
         password: hashedPassword,
         rol: Role.SUPER_ADMIN,
       },

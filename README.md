@@ -84,7 +84,7 @@ docker compose exec backend npx ts-node seed-admin.ts
 *Nota: Por defecto, se creará el usuario `admin@bes.com` con la contraseña `admin_password_2026`. Se recomienda cambiarla inmediatamente al iniciar sesión.*
 
 ### Paso 5: Probar y Usar
-* Acceso a la interfaz web: `http://<IP_DE_TU_SERVIDOR>:3000`
+* Acceso a la interfaz web: `http://<IP_DE_TU_SERVIDOR>:3500` (o `http://localhost:3500`)
 * Acceso a la API del backend: `http://<IP_DE_TU_SERVIDOR>:4000`
 
 ---

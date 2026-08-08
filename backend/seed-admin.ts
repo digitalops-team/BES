@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt'; // Usamos bcrypt que instalamos en BES
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -16,7 +16,9 @@ async function main() {
     create: {
       email,
       password,
-      nombre: 'Super Administrador',
+      nombres: 'Super',
+      apellidos: 'Administrador',
+      dni: '00000000',
       rol: 'SUPER_ADMIN',
     },
   });

@@ -30,7 +30,9 @@ interface AuditLogItem {
   createdAt: string;
   usuario?: {
     id: string;
-    nombre: string;
+    nombres?: string;
+    apellidos?: string;
+    nombre?: string;
     email: string;
     rol: string;
   } | null;
@@ -228,15 +230,23 @@ export default function AuditoriaPage() {
                     </td>
                     <td className="py-3.5 px-4">
                       {log.usuario ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs">
-                            {log.usuario.nombre.substring(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-white text-xs">{log.usuario.nombre}</p>
-                            <p className="text-[11px] text-gray-400">{log.usuario.email}</p>
-                          </div>
-                        </div>
+                        (() => {
+                          const fullName = log.usuario.nombres && log.usuario.apellidos
+                            ? `${log.usuario.nombres} ${log.usuario.apellidos}`
+                            : (log.usuario.nombre || log.usuario.email);
+                          const initial = fullName.charAt(0).toUpperCase();
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs">
+                                {initial}
+                              </div>
+                              <div>
+                                <p className="font-medium text-white text-xs">{fullName}</p>
+                                <p className="text-[11px] text-gray-400 font-mono">{log.usuario.email}</p>
+                              </div>
+                            </div>
+                          );
+                        })()
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-800 text-gray-400 text-xs font-mono">
                           <Laptop className="w-3 h-3" /> Sistema / Worker

@@ -87,7 +87,7 @@ export class EmpresasService {
           asignaciones: {
             include: {
               usuario: {
-                select: { id: true, nombre: true, email: true },
+                select: { id: true, nombres: true, apellidos: true, dni: true, email: true },
               },
             },
           },

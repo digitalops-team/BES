@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 import { AuditService } from '../audit/audit.service';
+import { generateAutoEmail } from '../usuarios/usuarios.service';
 
 @Injectable()
 export class AuthService {
@@ -18,45 +19,69 @@ export class AuthService {
   ) {}
 
   async register(data: any) {
-    const existingUser = await this.prisma.usuario.findUnique({
-      where: { email: data.email },
+    const nombres = data.nombres || data.nombre || '';
+    const apellidos = data.apellidos || '';
+    const dni = data.dni || '';
+
+    const email = data.email || (nombres && apellidos && dni ? generateAutoEmail(nombres, apellidos, dni) : '');
+
+    const existingUser = await this.prisma.usuario.findFirst({
+      where: {
+        OR: [
+          { email },
+          ...(dni ? [{ dni }] : []),
+        ],
+      },
     });
 
     if (existingUser) {
-      throw new ConflictException('El correo ya está registrado');
+      throw new ConflictException('El correo o DNI ya está registrado');
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
     const user = await this.prisma.usuario.create({
       data: {
-        email: data.email,
+        email,
         password: hashedPassword,
-        nombre: data.nombre,
+        nombres: nombres.trim(),
+        apellidos: apellidos.trim(),
+        dni: dni.trim(),
+        telegramChatId: data.telegramChatId ? data.telegramChatId.trim() : null,
       },
     });
+
+    const fullName = `${user.nombres} ${user.apellidos}`.trim();
 
     await this.auditService.log({
       usuarioId: user.id,
       accion: 'REGISTRO_USUARIO',
       entidad: 'Usuario',
       entidadId: user.id,
-      detalles: { email: user.email, nombre: user.nombre },
+      detalles: { email: user.email, nombre: fullName, dni: user.dni },
     });
 
     const payload = {
       sub: user.id,
       email: user.email,
-      nombre: user.nombre,
+      nombres: user.nombres,
+      apellidos: user.apellidos,
+      nombre: fullName,
+      dni: user.dni,
       rol: user.rol,
+      telegramChatId: user.telegramChatId,
     };
     return {
       access_token: await this.jwtService.signAsync(payload),
       usuario: {
         id: user.id,
         email: user.email,
-        nombre: user.nombre,
+        nombres: user.nombres,
+        apellidos: user.apellidos,
+        nombre: fullName,
+        dni: user.dni,
         rol: user.rol,
+        telegramChatId: user.telegramChatId,
       },
     };
   }
@@ -89,19 +114,29 @@ export class AuthService {
       detalles: { email: user.email },
     });
 
+    const fullName = `${user.nombres} ${user.apellidos}`.trim();
+
     const payload = {
       sub: user.id,
       email: user.email,
-      nombre: user.nombre,
+      nombres: user.nombres,
+      apellidos: user.apellidos,
+      nombre: fullName,
+      dni: user.dni,
       rol: user.rol,
+      telegramChatId: user.telegramChatId,
     };
     return {
       access_token: await this.jwtService.signAsync(payload),
       usuario: {
         id: user.id,
         email: user.email,
-        nombre: user.nombre,
+        nombres: user.nombres,
+        apellidos: user.apellidos,
+        nombre: fullName,
+        dni: user.dni,
         rol: user.rol,
+        telegramChatId: user.telegramChatId,
       },
     };
   }

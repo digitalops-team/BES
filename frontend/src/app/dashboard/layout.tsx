@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import api from '@/lib/api';
-import { Building2, Bell, LogOut, Settings, Shield, ShieldCheck, Archive, Mail, TrendingUp, Menu, X } from 'lucide-react';
+import { Building2, Bell, LogOut, Settings, Shield, ShieldCheck, Archive, Mail, TrendingUp, Menu, X, User } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
+import { UserProfileModal } from './components/UserProfileModal';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, logout } = useAuthStore();
@@ -19,6 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const toggleNotifications = async () => {
     if (!showNotifications) {
@@ -202,25 +204,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         </nav>
 
-        <div className="p-4 md:p-6 border-t border-white/5">
-          <div className="flex items-center gap-3 mb-4 md:mb-6">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-gray-700 to-gray-600 border border-white/10 flex items-center justify-center text-white font-bold flex-shrink-0">
+        <div className="p-4 md:p-6 border-t border-white/5 space-y-3">
+          {/* Botón de Perfil de Usuario */}
+          <div
+            onClick={() => setIsProfileOpen(true)}
+            className="flex items-center gap-3 p-2.5 -mx-1 rounded-2xl hover:bg-white/5 border border-transparent hover:border-white/5 cursor-pointer transition-all group"
+            title="Ver mi perfil de usuario"
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 border border-white/10 flex items-center justify-center text-white font-bold flex-shrink-0 group-hover:scale-105 transition-transform shadow-md shadow-indigo-500/20">
               {user?.nombre?.charAt(0).toUpperCase() || 'U'}
             </div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-semibold text-white truncate">{user?.nombre}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+            <div className="overflow-hidden flex-1 min-w-0">
+              <p className="text-xs font-bold text-white truncate group-hover:text-indigo-400 transition-colors flex items-center justify-between">
+                <span className="truncate">{user?.nombre}</span>
+              </p>
+              <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
             </div>
           </div>
+
           <button
             onClick={() => { logout().then(() => router.push('/login')); }}
-            className="flex items-center gap-3 w-full px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl font-medium transition-colors"
+            className="flex items-center gap-3 w-full px-4 py-2.5 text-red-400 hover:bg-red-500/10 rounded-xl font-medium text-xs transition-colors"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
             Cerrar Sesión
           </button>
         </div>
       </aside>
+
+      {/* Modal de Perfil de Usuario */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">

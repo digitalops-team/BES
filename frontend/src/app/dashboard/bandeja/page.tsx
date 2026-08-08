@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, FilterX as FilterIcon, MailOpen, Mail, Clock, FileText, AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
+import { FileText as FileIcon, Search as SearchIcon, X as XIcon, ExternalLink as ExternalIcon, FilterX as FilterIcon, MailOpen, Mail, Clock, FileText, AlertTriangle, Trash2, RefreshCw, CircleDollarSign } from 'lucide-react';
 import ConfirmModal from '@/components/ConfirmModal';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -269,11 +269,21 @@ function BandejaContent() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="font-semibold text-white">{notif.empresa.razonSocial}</span>
                       <span className="text-xs font-mono bg-white/5 px-2 py-0.5 rounded text-gray-400 border border-white/5">
                         RUC: {notif.empresa.ruc}
                       </span>
+                      {notif.montoExigible && (
+                        <span className="text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
+                          <CircleDollarSign className="w-3.5 h-3.5" /> Deuda Exigible: {notif.montoExigible}
+                        </span>
+                      )}
+                      {notif.expedienteCoactivo && (
+                        <span className="text-xs font-mono text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-amber-400" /> Exp: {notif.expedienteCoactivo}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
                       <Clock className="w-3.5 h-3.5" />

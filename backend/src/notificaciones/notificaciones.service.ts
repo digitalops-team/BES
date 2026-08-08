@@ -2,14 +2,73 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  OnModuleInit,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { PdfParserService } from '../scraper/pdf-parser.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
 @Injectable()
-export class NotificacionesService {
-  constructor(private prisma: PrismaService) {}
+export class NotificacionesService implements OnModuleInit {
+  private readonly logger = new Logger(NotificacionesService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private pdfParserService: PdfParserService,
+  ) {}
+
+  async onModuleInit() {
+    // Escaneo y retro-extracción automática de información financiera en PDFs existentes
+    setTimeout(() => {
+      this.backfillPdfData().catch((err) =>
+        this.logger.error(`Error en backfill de PDFs: ${err?.message || err}`),
+      );
+    }, 3000);
+  }
+
+  async backfillPdfData() {
+    this.logger.log('🔍 Iniciando verificación y retro-extracción de montos exigibles en PDFs...');
+    const notifs = await this.prisma.notificacion.findMany({
+      where: {
+        rutaArchivoPdf: { not: null },
+        OR: [{ montoExigible: null }, { expedienteCoactivo: null }],
+      },
+      select: { id: true, rutaArchivoPdf: true, asunto: true },
+    });
+
+    if (notifs.length === 0) {
+      this.logger.log('✅ Todos los PDFs ya cuentan con información extraída.');
+      return;
+    }
+
+    this.logger.log(`📄 Procesando ${notifs.length} notificación(es) pendientes...`);
+    let updatedCount = 0;
+
+    for (const notif of notifs) {
+      if (!notif.rutaArchivoPdf) continue;
+      const fileName = notif.rutaArchivoPdf.split('/uploads/').pop();
+      if (!fileName) continue;
+
+      const filePath = path.join(process.cwd(), 'uploads', fileName);
+      if (fs.existsSync(filePath)) {
+        const extracted = await this.pdfParserService.parsePdfFile(filePath);
+        if (extracted.montoExigible || extracted.expedienteCoactivo) {
+          await this.prisma.notificacion.update({
+            where: { id: notif.id },
+            data: {
+              montoExigible: extracted.montoExigible,
+              expedienteCoactivo: extracted.expedienteCoactivo,
+            },
+          });
+          updatedCount++;
+        }
+      }
+    }
+
+    this.logger.log(`✅ Retro-extracción completada: ${updatedCount} notificación(es) actualizadas con montos de deuda.`);
+  }
 
   /** Obtiene los IDs de empresas visibles para el usuario según su rol */
   private async getEmpresaIds(
@@ -17,13 +76,11 @@ export class NotificacionesService {
     rol: string,
   ): Promise<string[]> {
     if (rol === 'SUPER_ADMIN' || rol === 'ADMIN') {
-      // SUPER_ADMIN y ADMIN ven notificaciones de TODAS las empresas del sistema
       const empresas = await this.prisma.empresa.findMany({
         select: { id: true },
       });
       return empresas.map((e) => e.id);
     }
-    // USUARIO_LOCAL: solo las empresas asignadas a él
     const asignaciones = await this.prisma.empresaAsignacion.findMany({
       where: { usuarioId },
       select: { empresaId: true },
@@ -39,7 +96,7 @@ export class NotificacionesService {
     return this.prisma.notificacion.findMany({
       where: {
         empresaId: { in: empresaIds },
-        lecturas: { none: { usuarioId } }, // Sin lectura para este usuario
+        lecturas: { none: { usuarioId } },
       },
       include: {
         empresa: { select: { id: true, razonSocial: true, ruc: true } },
@@ -56,7 +113,7 @@ export class NotificacionesService {
     return this.prisma.notificacion.findMany({
       where: {
         empresaId: { in: empresaIds },
-        lecturas: { some: { usuarioId } }, // Con lectura de este usuario
+        lecturas: { some: { usuarioId } },
       },
       include: {
         empresa: { select: { id: true, razonSocial: true, ruc: true } },
@@ -65,12 +122,12 @@ export class NotificacionesService {
     });
   }
 
-  /** Marca una notificación como leída SOLO para este usuario (no afecta a otros) */
+  /** Marca una notificación como leída SOLO para este usuario */
   async markAsRead(notificacionId: string, usuarioId: string) {
     return this.prisma.notificacionLectura.upsert({
       where: { notificacionId_usuarioId: { notificacionId, usuarioId } },
       create: { notificacionId, usuarioId },
-      update: {}, // Si ya existe, no hacer nada
+      update: {},
     });
   }
 
@@ -79,7 +136,6 @@ export class NotificacionesService {
     const empresaIds = await this.getEmpresaIds(usuarioId, rol);
     if (empresaIds.length === 0) return { count: 0 };
 
-    // Obtener todas las notificaciones sin leer por este usuario
     const sinLeer = await this.prisma.notificacion.findMany({
       where: {
         empresaId: { in: empresaIds },
@@ -88,7 +144,6 @@ export class NotificacionesService {
       select: { id: true },
     });
 
-    // Crear lecturas para todas
     const lecturas = sinLeer.map((n) => ({ notificacionId: n.id, usuarioId }));
     await this.prisma.notificacionLectura.createMany({
       data: lecturas,
@@ -98,11 +153,9 @@ export class NotificacionesService {
     return { count: lecturas.length };
   }
 
-  /** Elimina el PDF del disco si existe */
   private deletePdfFile(rutaArchivoPdf: string | null) {
     if (!rutaArchivoPdf) return;
     try {
-      // La URL es tipo: http://localhost:3000/uploads/123456789.pdf
       const fileName = rutaArchivoPdf.split('/uploads/').pop();
       if (!fileName) return;
       const filePath = path.join(process.cwd(), 'uploads', fileName);
@@ -110,12 +163,10 @@ export class NotificacionesService {
         fs.unlinkSync(filePath);
       }
     } catch (err) {
-      // No bloqueamos si falla el borrado del archivo
       console.error('Error eliminando PDF del disco:', err);
     }
   }
 
-  /** Elimina UNA notificación (solo SUPER_ADMIN y ADMIN) + su PDF del disco */
   async removeOne(id: string, usuarioId: string, rol: string) {
     if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
       throw new ForbiddenException(
@@ -126,26 +177,21 @@ export class NotificacionesService {
     const notif = await this.prisma.notificacion.findUnique({ where: { id } });
     if (!notif) throw new NotFoundException('Notificación no encontrada');
 
-    // Eliminar PDF del disco
     this.deletePdfFile(notif.rutaArchivoPdf);
 
-    // Eliminar registro (cascade borra NotificacionLectura asociadas)
     await this.prisma.notificacion.delete({ where: { id } });
     return { success: true };
   }
 
-  /** Solo SUPER_ADMIN/ADMIN pueden eliminar TODAS las notificaciones (+ PDFs) */
   async removeAllByUser(usuarioId: string, rol: string) {
     const empresaIds = await this.getEmpresaIds(usuarioId, rol);
     if (empresaIds.length === 0) return { count: 0 };
 
-    // Recopilar rutas de PDF antes de borrar
     const notifs = await this.prisma.notificacion.findMany({
       where: { empresaId: { in: empresaIds } },
       select: { rutaArchivoPdf: true },
     });
 
-    // Borrar PDFs del disco
     notifs.forEach((n) => this.deletePdfFile(n.rutaArchivoPdf));
 
     return this.prisma.notificacion.deleteMany({
@@ -153,7 +199,6 @@ export class NotificacionesService {
     });
   }
 
-  /** Elimina MULTIPLES notificaciones (solo SUPER_ADMIN y ADMIN) + sus PDFs del disco */
   async removeMany(ids: string[], usuarioId: string, rol: string) {
     if (rol !== 'SUPER_ADMIN' && rol !== 'ADMIN') {
       throw new ForbiddenException(

@@ -1,24 +1,16 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User, Settings, Shield, Bell, Key, Database, RefreshCw, CheckCircle, AlertCircle, Volume2, VolumeX, X } from 'lucide-react';
+import { Settings, Shield, Bell, Database, RefreshCw, CheckCircle, Volume2, VolumeX, X } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 
-type Tab = 'profile' | 'preferences' | 'system';
+type Tab = 'preferences' | 'system';
 
 export default function ConfiguracionPage() {
-  const { user, setUser } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const { user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<Tab>('preferences');
   
-  // Profile state
-  const [nombre, setNombre] = useState(user?.nombre || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileMessage, setProfileMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
   // Preferences state (Browser local storage)
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
@@ -41,45 +33,6 @@ export default function ConfiguracionPage() {
     const newValue = !soundEnabled;
     setSoundEnabled(newValue);
     localStorage.setItem('bes_sound_enabled', String(newValue));
-  };
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setProfileMessage(null);
-
-    if (password && password !== confirmPassword) {
-      setProfileMessage({ text: 'Las contraseñas nuevas no coinciden.', type: 'error' });
-      return;
-    }
-
-    setProfileLoading(true);
-    try {
-      const data: any = { nombre, email };
-      if (password) data.password = password;
-
-      const res = await api.patch('/usuarios/profile/me', data);
-      
-      // Actualizar el store de autenticación con los nuevos datos
-      if (user) {
-        setUser({
-          ...user,
-          nombre: res.data.nombre,
-          email: res.data.email,
-        });
-      }
-      
-      setPassword('');
-      setConfirmPassword('');
-      setProfileMessage({ text: 'Perfil actualizado con éxito.', type: 'success' });
-    } catch (error: any) {
-      console.error("Error updating profile", error);
-      setProfileMessage({ 
-        text: error.response?.data?.message || 'Error al actualizar el perfil.', 
-        type: 'error' 
-      });
-    } finally {
-      setProfileLoading(false);
-    }
   };
 
   const handleSyncAll = async () => {
@@ -118,22 +71,11 @@ export default function ConfiguracionPage() {
           <Settings className="w-7 h-7 text-indigo-400" />
           Configuración
         </h2>
-        <p className="text-gray-400 text-sm mt-1">Administra tu perfil personal, contraseñas, preferencias y tareas del sistema.</p>
+        <p className="text-gray-400 text-sm mt-1">Administra tus preferencias de notificación y tareas del sistema.</p>
       </div>
 
       {/* Tabs list */}
       <div className="flex gap-2 border-b border-white/5 pb-px">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`flex items-center gap-2 px-6 py-3 border-b-2 font-semibold text-sm transition-all ${
-            activeTab === 'profile'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
-        >
-          <User className="w-4 h-4" />
-          Mi Perfil
-        </button>
         <button
           onClick={() => setActiveTab('preferences')}
           className={`flex items-center gap-2 px-6 py-3 border-b-2 font-semibold text-sm transition-all ${
@@ -145,6 +87,7 @@ export default function ConfiguracionPage() {
           <Bell className="w-4 h-4" />
           Preferencias
         </button>
+
         {isAdmin && (
           <button
             onClick={() => setActiveTab('system')}
@@ -162,90 +105,6 @@ export default function ConfiguracionPage() {
 
       {/* Tab content */}
       <div className="bg-[#111827] rounded-3xl border border-white/5 p-8 max-w-3xl">
-        {activeTab === 'profile' && (
-          <form onSubmit={handleUpdateProfile} className="space-y-6">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4 border-b border-white/5 pb-3">
-              <User className="w-5 h-5 text-indigo-400" />
-              Datos del Perfil
-            </h3>
-
-            {profileMessage && (
-              <div className={`p-4 rounded-xl flex items-center gap-3 border text-sm ${
-                profileMessage.type === 'success' 
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                  : 'bg-red-500/10 border-red-500/20 text-red-400'
-              }`}>
-                {profileMessage.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                <span>{profileMessage.text}</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nombre Completo</label>
-                <input
-                  type="text"
-                  required
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  className="w-full bg-white/[0.02] border border-white/5 focus:border-blue-500 rounded-xl px-4 py-3 text-white outline-none transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Correo Electrónico</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-white/[0.02] border border-white/5 focus:border-blue-500 rounded-xl px-4 py-3 text-white outline-none transition-colors"
-                />
-              </div>
-            </div>
-
-            <div className="pt-4">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4 border-b border-white/5 pb-3">
-                <Key className="w-5 h-5 text-indigo-400" />
-                Cambiar Contraseña
-              </h3>
-              <p className="text-gray-400 text-xs mb-6">Completa estos campos solo si deseas cambiar tu contraseña actual.</p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nueva Contraseña</label>
-                  <input
-                    type="password"
-                    placeholder="Min. 6 caracteres"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-white/[0.02] border border-white/5 focus:border-blue-500 rounded-xl px-4 py-3 text-white outline-none transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Confirmar Nueva Contraseña</label>
-                  <input
-                    type="password"
-                    placeholder="Repite la contraseña"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-white/[0.02] border border-white/5 focus:border-blue-500 rounded-xl px-4 py-3 text-white outline-none transition-colors"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-white/5 flex justify-end">
-              <button
-                type="submit"
-                disabled={profileLoading}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white font-bold rounded-xl shadow-lg shadow-blue-600/10 hover:shadow-blue-500/20 transition-all text-sm"
-              >
-                {profileLoading ? 'Guardando...' : 'Guardar Cambios'}
-              </button>
-            </div>
-          </form>
-        )}
-
         {activeTab === 'preferences' && (
           <div className="space-y-8">
             <div>
